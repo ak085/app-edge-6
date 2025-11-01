@@ -3,7 +3,7 @@
 
 # BACnet Libraries
 BAC0==2025.6.10
-# BACpypes3==0.0.102  # Alternative, not used in current version
+BACpypes3==0.0.102  # Used for discovery
 
 # MQTT
 paho-mqtt==2.1.0

@@ -54,8 +54,8 @@ services:
       frontend:
         condition: service_started
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
+      DB_HOST: 192.168.1.35  # Use host IP since worker uses host networking
+      DB_PORT: 5434          # Use host-exposed port
       DB_NAME: ${POSTGRES_DB:-bacpipes}
       DB_USER: ${POSTGRES_USER:-anatoli}
       BACNET_IP: ${BACNET_IP:-192.168.1.35}
@@ -64,11 +64,10 @@ services:
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-bacpipes_worker}
       TZ: ${TZ:-Asia/Kuala_Lumpur}
-    networks:
-      - bacpipes-network
+    network_mode: host       # Required for BACnet communication
     restart: unless-stopped
-    # Worker will be implemented in M4, for now it will just sleep
-    command: ["tail", "-f", "/dev/null"]
+    # Run the job processor that polls for discovery jobs (-u for unbuffered output)
+    command: ["python", "-u", "/app/job_processor.py"]
 
   # Optional MQTT broker for development (start with: docker-compose --profile development up)
   mqtt-broker:
