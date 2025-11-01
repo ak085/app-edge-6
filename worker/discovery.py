@@ -296,13 +296,15 @@ def save_to_database(job_id: str, devices: List[Tuple[str, int]], points: List[D
                         '''INSERT INTO "Point"
                            ("deviceId", "objectType", "objectInstance", "pointName",
                             "description", "units", "enabled", "isReadable", "isWritable",
-                            "createdAt", "updatedAt")
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            "lastValue", "lastPollTime", "createdAt", "updatedAt")
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            ON CONFLICT ("deviceId", "objectType", "objectInstance")
                            DO UPDATE SET
                                "pointName" = EXCLUDED."pointName",
                                "description" = EXCLUDED."description",
                                "units" = EXCLUDED."units",
+                               "lastValue" = EXCLUDED."lastValue",
+                               "lastPollTime" = EXCLUDED."lastPollTime",
                                "updatedAt" = EXCLUDED."updatedAt"''',
                         (
                             db_device_id,
@@ -314,6 +316,8 @@ def save_to_database(job_id: str, devices: List[Tuple[str, int]], points: List[D
                             True,
                             True,
                             'priorityArray' in point,  # Has priority array = writable
+                            point.get('presentValue'),  # Save presentValue to lastValue
+                            datetime.now(),             # lastPollTime
                             datetime.now(),
                             datetime.now()
                         )
