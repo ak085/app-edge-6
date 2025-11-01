@@ -1,0 +1,221 @@
+# BacPipes - Git Ignore File
+
+# ============================================
+# Python
+# ============================================
+# Virtual Environments
+bac0_env/
+venv/
+env/
+ENV/
+.venv/
+*.virtualenv
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# ============================================
+# Node.js / Frontend
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+build/
+
+# ============================================
+# Docker
+# ============================================
+# Docker volumes (data persistence)
+postgres_data/
+influxdb_data/
+mqtt_data/
+
+# Docker override files (local development)
+docker-compose.override.yml
+
+# ============================================
+# Database
+# ============================================
+# PostgreSQL
+*.sql
+*.dump
+*.backup
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Prisma
+frontend/prisma/migrations/**/migration.sql.bak
+
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.cert
+
+# MQTT/InfluxDB credentials
+config/secrets.yaml
+config/.secrets
+
+# ============================================
+# Logs
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# IDE / Editor
+# ============================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (PyCharm, WebStorm)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================
+# OS Files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ============================================
+# Project Specific
+# ============================================
+# CSV exports (can be large, regenerate from DB)
+config/discovered_points.csv
+config/discovered_points_*.csv
+
+# JSON exports (backup files)
+config/production_json/*.json
+trash/database_exports/*.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# ============================================
+# Development / Testing
+# ============================================
+# Test data
+test_data/
+test_output/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# ============================================
+# Documentation (generated)
+# ============================================
+# Keep CLAUDE.md, README.md, etc. but ignore generated docs
+docs/_build/
+site/
+
+# ============================================
+# Keep Important Files
+# ============================================
+# These files SHOULD be committed:
+# - CLAUDE.md (project documentation)
+# - README.md
+# - requirements.txt (Python dependencies)
+# - setup.py (Python package setup)
+# - docker-compose.yml
+# - Dockerfile(s)
+# - config/bacnet_config.yaml (configuration template)
+# - scripts/*.py (all Python scripts)
+# - frontend/package.json
+# - frontend/prisma/schema.prisma

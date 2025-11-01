@@ -1,0 +1,180 @@
+# BACnet Discovery Master Configuration
+# =====================================
+# This file contains all configurable parameters for BACnet discovery and analysis
+# CHANGE THE NETWORK SETTINGS BELOW FOR YOUR SPECIFIC NETWORK
+# 
+# IMPORTANT: This configuration file must be customized for each site installation!
+# - Network IP addresses (local_ip, broadcast_ip)
+# - MQTT broker IP address
+# - InfluxDB server IP address
+# - Site-specific information
+
+# Network Configuration (MUST CHANGE for each network)
+network:
+  local_ip: "192.168.1.35"        # Your discovery machine IP address
+  broadcast_ip: "192.168.1.255"   # Your network broadcast IP address
+  subnet: "24"                     # Your subnet mask (24 = /24, 16 = /16, etc.)
+  local_port: "47808"              # BACnet port (usually 47808)
+
+# Device Configuration (CAN KEEP SAME - works universally)
+device:
+  device_id: "3001234"             # Unique device ID for discovery tool (safe range)
+  device_name: "ProductionDiscovery" # Name for your discovery tool
+  vendor_id: 999                   # Vendor ID (999 = unassigned, standard for discovery)
+
+# Discovery Settings (OPTIONAL - can keep defaults)
+discovery:
+  timeout: 15                      # Discovery timeout in seconds
+  apdu_length: 1024                # APDU length for BACnet communication
+  segmentation: "segmentedBoth"    # Segmentation mode (segmentedBoth, segmentedTransmit, segmentedReceive, noSegmentation)
+  batch_size: 3                    # Batch size for processing objects
+
+# Analysis Settings (OPTIONAL - can keep defaults)
+analysis:
+  priority_override_level: 8       # Recommended priority level for overrides
+  include_all_properties: true     # Include all properties in discovery
+  save_json_backup: true           # Save complete JSON data backup
+
+# Timezone Configuration
+timezone: "Asia/Kuala_Lumpur"
+
+# MQTT Configuration (REQUIRED for integrated polling and writing)
+mqtt:
+  broker: "10.0.60.50"             # MQTT broker for all operations (polling and writing)
+  port: 1883                       # MQTT broker port
+  client_id: "production_integrated_mqtt_client"  # MQTT client ID
+  username: null                   # MQTT username (null for no authentication)
+  password: null                   # MQTT password (null for no authentication)
+  keepalive: 30                    # MQTT keepalive interval in seconds
+  max_inflight_messages: 20        # Maximum inflight messages
+  max_queued_messages: 100         # Maximum queued messages
+
+# MQTT System Topics Configuration (OPTIONAL - uses defaults if not specified)
+mqtt_system_topics:
+  write_command: "bacnet/write/command"    # Topic for BACnet write commands
+  write_result: "bacnet/write/result"      # Topic for BACnet write results
+  polling_results: "bacnet/polling/points" # Topic for polling results
+
+# InfluxDB Configuration (REQUIRED for data storage)
+influxdb:
+  host: "10.0.60.5"                    # InfluxDB server hostname or IP (LXC container)
+  port: 8086                           # InfluxDB HTTP port (standard InfluxDB 2.x port)
+  database: "bacnet_data"              # Database name for BACnet data (legacy field, not used in 2.x)
+  admin_token: "l_7dILekjtf6vO0hRAtn0a1mPW4OzLD0ObWiHmUtM0Y3c4E0NK1QEhqxWHlcxSv_pKRRN6xxhiAU0AfYGMEO6w=="  # Admin token for authentication
+  organization: "bacpipes_org"         # Organization name (for InfluxDB 2.x)
+  bucket: "bacnet_data"                # Bucket name (for InfluxDB 2.x)
+  retention_policy: "30d"              # Data retention period
+  batch_size: 1000                     # Batch size for writes
+  flush_interval: "10s"                # Flush interval for writes
+
+# MQTT Publishing Configuration (REQUIRED for JSON generation)
+mqtt_publishing:
+  point_filter_column: "mqtt_publish"  # Column to filter which points to publish (from CSV)
+  
+  # Field Selection for MQTT Messages
+  # =================================
+  # Choose which fields to include in MQTT messages by setting to true/false
+  # Currently selected fields (true) - 16 fields:
+  required_fields:
+    # CORE DATA FIELDS
+    timestamp: true           # When the data was read
+    value: false             # The actual BACnet value (don't duplicate as tag)
+    haystack_point_name: true # Generated Haystack point name
+    mqtt_topic: true         # MQTT topic for this point
+    
+    # BACNET IDENTIFICATION
+    object_type: true        # BACnet object type (analog-input, etc.)
+    object_id: true          # BACnet object instance number
+    device_id: true          # BACnet device ID
+    device_ip: false         # Device IP address (not needed for ML)
+    device_port: false       # Device port number (not needed for ML)
+    
+    # UNITS AND QUALITY
+    units: true              # Engineering units
+    quality: false           # Data quality indicator (not needed, using out_of_service instead)
+    
+    # SITE AND EQUIPMENT INFO
+    site_id: true            # Site identifier
+    site_timezone: true      # Site timezone
+    equipment_type: true     # Type of equipment (ahu, etc.)
+    equipment_id: true       # Equipment identifier
+    
+    # POINT CONFIGURATION
+    point_function: true     # Function (sensor, actuator, etc.)
+    quantity: true           # What it measures (temperature, etc.)
+    subject: true            # Subject (air, water, etc.)
+    location: true           # Physical location
+    qualifier: true          # Additional qualifiers
+    dis: true                # Human-readable description
+    
+    # CONTROL PARAMETERS
+    qos: true               # MQTT Quality of Service (set globally by client)
+    poll_interval: true      # Polling interval in seconds
+    priority: false          # BACnet priority level (only needed for writes)
+    mqtt_publish: false      # Whether to publish this point (filter flag, not payload)
+    is_writable: true        # Whether point is writable
+    
+    # BACNET STATUS
+    out_of_service: true     # Out of service status
+    present_value: false     # Current BACnet value
+    status_flags: false      # BACnet status flags
+    reliability: false       # BACnet reliability
+    event_state: false       # BACnet event state
+    
+    # BACNET LIMITS
+    high_limit: false        # High limit value
+    low_limit: false         # Low limit value
+    deadband: false          # Deadband value
+    min_pres_value: false    # Minimum present value
+    max_pres_value: false    # Maximum present value
+    
+    # BACNET CONFIGURATION
+    limit_enable: false      # Limit enable flags
+    event_enable: false      # Event enable flags
+    acked_transitions: false # Acknowledged transitions
+    notify_type: false       # Notification type
+    profile_name: false      # Profile name
+    tags: false              # BACnet tags
+    audit_level: false       # Audit level
+    
+    # BACNET ARRAYS
+    priority_array: false    # Priority array data
+    cov_increment: false     # COV increment
+    time_delay: false        # Time delay
+    state_text: false        # State text array
+    active_text: false       # Active text
+    inactive_text: false     # Inactive text
+    
+    # BACNET RESOLUTION
+    resolution: false        # Resolution value
+    number_of_states: false  # Number of states
+    min_pres_value: false    # Minimum present value
+    max_pres_value: false    # Maximum present value
+    
+    # DEVICE INFORMATION
+    device_name: false       # Device name
+    vendor_name: false       # Vendor name
+    model_name: false        # Model name
+    firmware_revision: false # Firmware revision
+    protocol_version: false  # Protocol version
+    protocol_services_supported: false # Supported services
+    object_types_supported: false # Supported object types
+    
+    # ANALYSIS RESULTS
+    is_readable: false       # Whether point is readable
+    access_type: false       # Access type (read-only, read-write)
+    priority_array_present: false # Whether priority array exists
+    priority_levels_available: false # Available priority levels
+    priority_override_recommendation: false # Override recommendation
+    priority_analysis_summary: false # Priority analysis summary
+    reasoning: false         # Analysis reasoning
+    
+    # RAW BACNET DATA
+    raw_point_name: false    # Original BACnet point name
+    description: false       # BACnet description
+
+# Advanced Settings (OPTIONAL - for advanced users)
+advanced:
+  enable_debug_logging: false      # Enable detailed debug logging
+  max_retries: 3                   # Maximum retry attempts for failed reads
+  connection_timeout: 5            # Connection timeout in seconds 

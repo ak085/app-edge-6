@@ -1,0 +1,9 @@
+BAC0>=2025.6.10
+BACpypes3>=0.0.102
+python-dotenv>=1.0.0
+influxdb-client>=1.38.0
+pandas>=1.5.0
+matplotlib>=3.6.0
+seaborn>=0.12.0 
+paho-mqtt
+PyYAML
