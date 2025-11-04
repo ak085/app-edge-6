@@ -59,8 +59,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       equipmentType,
       equipmentId,
       pointFunction,
-      pointType,
-      haystackPointName,
+      quantity,
+      subject,
+      location,
+      qualifier,
+      dis,
       mqttPublish,
       pollInterval,
       qos,
@@ -74,8 +77,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (equipmentType !== undefined) updateData.equipmentType = equipmentType;
     if (equipmentId !== undefined) updateData.equipmentId = equipmentId;
     if (pointFunction !== undefined) updateData.pointFunction = pointFunction;
-    if (pointType !== undefined) updateData.pointType = pointType;
-    if (haystackPointName !== undefined) updateData.haystackPointName = haystackPointName;
+    if (quantity !== undefined) updateData.quantity = quantity;
+    if (subject !== undefined) updateData.subject = subject;
+    if (location !== undefined) updateData.location = location;
+    if (qualifier !== undefined) updateData.qualifier = qualifier;
+    if (dis !== undefined) updateData.dis = dis;
     if (mqttPublish !== undefined) updateData.mqttPublish = mqttPublish;
     if (pollInterval !== undefined) updateData.pollInterval = parseInt(pollInterval);
     if (qos !== undefined) updateData.qos = parseInt(qos);
@@ -102,6 +108,40 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const mqttTopic = generateMqttTopic(pointForTopic);
     if (mqttTopic) {
       updateData.mqttTopic = mqttTopic;
+    }
+
+    // Generate haystack_point_name if all required fields are present
+    const finalSiteId = updateData.siteId ?? currentPoint.siteId;
+    const finalEquipmentType = updateData.equipmentType ?? currentPoint.equipmentType;
+    const finalEquipmentId = updateData.equipmentId ?? currentPoint.equipmentId;
+    const finalPointFunction = updateData.pointFunction ?? currentPoint.pointFunction;
+    const finalQuantity = updateData.quantity ?? currentPoint.quantity;
+    const finalSubject = updateData.subject ?? currentPoint.subject;
+    const finalLocation = updateData.location ?? currentPoint.location;
+    const finalQualifier = updateData.qualifier ?? currentPoint.qualifier;
+
+    // Meta-data quantities (schedule, calendar, datetime, date) may have blank subject/location
+    const metaDataQuantities = ['schedule', 'calendar', 'datetime', 'date'];
+    const isMetaData = metaDataQuantities.includes(finalQuantity || '');
+
+    // For regular points: require all 8 fields
+    // For meta-data points: allow blank subject/location
+    const hasRequiredFields = isMetaData
+      ? (finalSiteId && finalEquipmentType && finalEquipmentId && finalPointFunction && finalQuantity && finalQualifier)
+      : (finalSiteId && finalEquipmentType && finalEquipmentId && finalPointFunction && finalQuantity && finalSubject && finalLocation && finalQualifier);
+
+    if (hasRequiredFields) {
+      const components = [
+        finalSiteId,
+        finalEquipmentType,
+        finalEquipmentId,
+        finalPointFunction,
+        finalQuantity,
+        finalSubject,
+        finalLocation,
+        finalQualifier
+      ].filter(Boolean);
+      updateData.haystackPointName = components.join('.').toLowerCase();
     }
 
     // Update the point

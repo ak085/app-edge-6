@@ -33,26 +33,40 @@ export async function POST(request: Request) {
     if (updates.equipmentType !== undefined) updateData.equipmentType = updates.equipmentType;
     if (updates.equipmentId !== undefined) updateData.equipmentId = updates.equipmentId;
     if (updates.pointFunction !== undefined) updateData.pointFunction = updates.pointFunction;
-    if (updates.pointType !== undefined) updateData.pointType = updates.pointType;
-    if (updates.haystackPointName !== undefined) updateData.haystackPointName = updates.haystackPointName;
+    if (updates.quantity !== undefined) updateData.quantity = updates.quantity;
+    if (updates.subject !== undefined) updateData.subject = updates.subject;
+    if (updates.location !== undefined) updateData.location = updates.location;
+    if (updates.qualifier !== undefined) updateData.qualifier = updates.qualifier;
+    if (updates.dis !== undefined) updateData.dis = updates.dis;
     if (updates.mqttPublish !== undefined) updateData.mqttPublish = updates.mqttPublish;
     if (updates.pollInterval !== undefined) updateData.pollInterval = parseInt(updates.pollInterval);
     if (updates.qos !== undefined) updateData.qos = parseInt(updates.qos);
     if (updates.enabled !== undefined) updateData.enabled = updates.enabled;
 
-    // If updating Haystack tags, need to regenerate MQTT topics for each point individually
-    if (updates.siteId !== undefined || updates.equipmentType !== undefined || updates.equipmentId !== undefined) {
+    // If updating Haystack tags, need to regenerate MQTT topics and haystack names for each point individually
+    if (updates.siteId !== undefined || updates.equipmentType !== undefined || updates.equipmentId !== undefined ||
+        updates.pointFunction !== undefined || updates.quantity !== undefined || updates.subject !== undefined ||
+        updates.location !== undefined || updates.qualifier !== undefined) {
       // Get all affected points
       const points = await prisma.point.findMany({
         where: { id: { in: pointIds } },
       });
 
-      // Update each point individually to regenerate its MQTT topic
+      // Update each point individually to regenerate its MQTT topic and haystack name
       const updatePromises = points.map((point) => {
+        const finalSiteId = updates.siteId !== undefined ? updates.siteId : point.siteId;
+        const finalEquipmentType = updates.equipmentType !== undefined ? updates.equipmentType : point.equipmentType;
+        const finalEquipmentId = updates.equipmentId !== undefined ? updates.equipmentId : point.equipmentId;
+        const finalPointFunction = updates.pointFunction !== undefined ? updates.pointFunction : point.pointFunction;
+        const finalQuantity = updates.quantity !== undefined ? updates.quantity : point.quantity;
+        const finalSubject = updates.subject !== undefined ? updates.subject : point.subject;
+        const finalLocation = updates.location !== undefined ? updates.location : point.location;
+        const finalQualifier = updates.qualifier !== undefined ? updates.qualifier : point.qualifier;
+
         const pointForTopic = {
-          siteId: updates.siteId !== undefined ? updates.siteId : point.siteId,
-          equipmentType: updates.equipmentType !== undefined ? updates.equipmentType : point.equipmentType,
-          equipmentId: updates.equipmentId !== undefined ? updates.equipmentId : point.equipmentId,
+          siteId: finalSiteId,
+          equipmentType: finalEquipmentType,
+          equipmentId: finalEquipmentId,
           objectType: point.objectType,
           objectInstance: point.objectInstance,
         };
@@ -61,6 +75,31 @@ export async function POST(request: Request) {
         const dataToUpdate = { ...updateData };
         if (mqttTopic) {
           dataToUpdate.mqttTopic = mqttTopic;
+        }
+
+        // Generate haystack_point_name if all required fields are present
+        // Meta-data quantities (schedule, calendar, datetime, date) may have blank subject/location
+        const metaDataQuantities = ['schedule', 'calendar', 'datetime', 'date'];
+        const isMetaData = metaDataQuantities.includes(finalQuantity || '');
+
+        // For regular points: require all 8 fields
+        // For meta-data points: allow blank subject/location
+        const hasRequiredFields = isMetaData
+          ? (finalSiteId && finalEquipmentType && finalEquipmentId && finalPointFunction && finalQuantity && finalQualifier)
+          : (finalSiteId && finalEquipmentType && finalEquipmentId && finalPointFunction && finalQuantity && finalSubject && finalLocation && finalQualifier);
+
+        if (hasRequiredFields) {
+          const components = [
+            finalSiteId,
+            finalEquipmentType,
+            finalEquipmentId,
+            finalPointFunction,
+            finalQuantity,
+            finalSubject,
+            finalLocation,
+            finalQualifier
+          ].filter(Boolean);
+          dataToUpdate.haystackPointName = components.join('.').toLowerCase();
         }
 
         return prisma.point.update({

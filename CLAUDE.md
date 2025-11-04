@@ -67,7 +67,7 @@ BacPipes/
 - Device ID: 3001234 (discovery tool)
 
 ### External Services
-- **MQTT Broker**: 10.0.60.50:1883
+- **MQTT Broker**: 10.0.60.2:1883
 - **InfluxDB**: 10.0.60.5:8086 (bucket: bacnet_data, retention: 30d)
 - **Timezone**: Asia/Kuala_Lumpur
 
@@ -347,7 +347,7 @@ Dashboard reads PostgreSQL (last value) + InfluxDB (history)
 **Why NOT Linux-first then containerize**: Double work, environment drift, delayed integration testing
 
 ### MQTT Broker Placement
-**Decision**: External MQTT broker (10.0.60.50:1883) with optional internal for development
+**Decision**: External MQTT broker (10.0.60.2:1883) with optional internal for development
 
 **Configuration**:
 ```yaml
@@ -722,8 +722,10 @@ LIMIT 10;
          "value": 22.5,
          "timestamp": "2025-11-01T10:30:00+08:00",
          "units": "degreesCelsius",
-         "device": "Excelsior",
-         "point": "Supply Air Temperature"
+         "quality": "good",
+         "deviceIp": "192.168.1.37",
+         "deviceId": 221,
+         "haystackName": "klcc.ahu.12.sensor.temp.air.supply.actual"
        }
        ```
 
@@ -757,7 +759,7 @@ class Config:
     BACNET_PORT = int(os.getenv('BACNET_PORT', '47808'))
 
     # MQTT
-    MQTT_BROKER = os.getenv('MQTT_BROKER', '10.0.60.50')
+    MQTT_BROKER = os.getenv('MQTT_BROKER', '10.0.60.2')
     MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
     MQTT_CLIENT_ID = os.getenv('MQTT_CLIENT_ID', 'bacpipes_worker')
 
@@ -783,12 +785,12 @@ docker-compose up
 docker-compose logs bacnet-worker
 # Should see:
 # [INFO] Worker started, polling 15 points
-# [INFO] Connected to MQTT broker 10.0.60.50:1883
+# [INFO] Connected to MQTT broker 10.0.60.2:1883
 # [INFO] Polling cycle 1: 15 points read, 15 published
 # [INFO] Polling cycle 2: 15 points read, 15 published
 
 # Verify MQTT messages
-mosquitto_sub -h 10.0.60.50 -t "klcc/#" -v
+mosquitto_sub -h 10.0.60.2 -t "klcc/#" -v
 # Should see:
 # klcc/ahu_12/analogInput1/presentValue {"value": 22.5, "timestamp": "..."}
 ```
@@ -840,7 +842,7 @@ CMD ["python", "main.py"]
 
 **Status Cards** (top of page):
 - ✅ MQTT Connection Status:
-  - 🟢 Connected to 10.0.60.50:1883
+  - 🟢 Connected to 10.0.60.2:1883
   - 🔴 Disconnected (with last error)
   - Last message published: "2 seconds ago"
 
@@ -1128,7 +1130,7 @@ CMD ["python", "main.py"]
    - Save button
 
 2. **MQTT Broker Settings**:
-   - Broker host (default: 10.0.60.50)
+   - Broker host (default: 10.0.60.2)
    - Port (default: 1883)
    - Client ID (default: bacpipes_worker)
    - Username (optional)
@@ -1297,7 +1299,7 @@ CMD ["python", "main.py"]
 - **Rationale**: Reference architecture proven, hot-reload works, production parity, avoid double work
 
 **2025-11-01: MQTT Broker Placement**
-- **Decision**: External broker (10.0.60.50) with optional internal for development
+- **Decision**: External broker (10.0.60.2) with optional internal for development
 - **Alternatives Considered**: Always internal, always external
 - **Rationale**: Production needs shared broker, development benefits from self-contained setup
 
@@ -1332,7 +1334,7 @@ BACNET_IP=192.168.1.35
 BACNET_PORT=47808
 
 # MQTT
-MQTT_BROKER=10.0.60.50
+MQTT_BROKER=10.0.60.2
 MQTT_PORT=1883
 MQTT_CLIENT_ID=bacpipes_worker
 
@@ -1384,7 +1386,7 @@ services:
       - frontend
     environment:
       DB_HOST: postgres
-      MQTT_BROKER: 10.0.60.50
+      MQTT_BROKER: 10.0.60.2
       BACNET_IP: 192.168.1.35
     network_mode: bridge  # Needs access to external BACnet network
 
@@ -1394,9 +1396,332 @@ volumes:
 
 ---
 
+## ARCHITECTURAL DECISIONS (Nov 2, 2025)
+
+### Critical Design Choices for ML/AI Data Pipeline
+
+**Status**: M3 (Point Display & Haystack Tagging) completed. Moving to M4 implementation.
+
+#### 1. Navigation & UI Framework ✅
+
+**Decision**: Unified navigation using Next.js App Router `layout.tsx`
+
+**Implementation**:
+- Shared navigation bar across all pages
+- Pages: Dashboard, Discovery, Points, Monitoring, Settings
+- Client-side routing via Next.js `<Link>` components
+- Active route highlighting
+- Mobile-responsive design
+
+**Graphics Design**:
+- ✅ Tailwind CSS v4 (continue current approach)
+- ✅ Shadcn/ui components
+- 🎨 **Enhanced visuals**:
+  - Increased contrast for better readability
+  - Mild, professional color palette
+  - Icons/logos for visual navigation cues
+  - Avatars for user actions
+  - Better visual hierarchy
+
+**Why**: Next.js App Router provides server-side layouts, no need for React Router (client-side only).
+
+---
+
+#### 2. MQTT Broker Hosting Strategy ⭐
+
+**Decision**: Separate LXC Container (NOT in Docker Compose)
+
+**Configuration**:
+```
+LXC Container: mqtt-broker
+IP: 10.0.60.2
+Port: 1883
+Software: Eclipse Mosquitto 2.x
+Storage: /var/lib/mosquitto (persistent)
+Backup: Daily snapshots
+```
+
+**Rationale**:
+- ✅ **High Availability**: Broker stays up during BacPipes restarts
+- ✅ **Multi-instance**: Shared by multiple BacPipes deployments
+- ✅ **Data Persistence**: Messages/subscriptions survive restarts
+- ✅ **Resource Isolation**: Dedicated CPU/RAM allocation
+- ✅ **Independent Scaling**: Can upgrade broker without touching BacPipes
+
+**Why NOT in Docker Compose**:
+- ❌ Single point of failure
+- ❌ Lost data on container restart
+- ❌ Cannot share between multiple BacPipes instances
+- ❌ Limited scalability
+
+---
+
+#### 3. MQTT Publishing Strategy (ML/AI Optimized) ⭐⭐⭐
+
+**Decision**: Hybrid Publishing - Individual AND Batched Topics
+
+**Critical for ML/AI workloads**: Synchronized timestamps, complete feature vectors, efficient parsing.
+
+##### **Strategy A: Individual Point Topics**
+
+**Format**: `{site}/{equipment}/{point}/presentValue`
+
+**Example**:
+```
+Topic: klcc/ahu_12/ai1/presentValue
+Payload: {
+  "value": 22.5,
+  "timestamp": "2025-11-02T15:30:00+08:00",
+  "units": "degreesCelsius",
+  "quality": "good",
+  "haystackName": "klcc.ahu.12.sensor.temp.air.supply.actual",
+  "deviceIp": "192.168.1.37",
+  "deviceId": 221,
+  "objectType": "analog-input",
+  "objectInstance": 1
+}
+
+QoS: 1 (at least once)
+Retain: true (last value always available)
+Frequency: Per point poll interval (e.g., 60s)
+```
+
+**Use Case**: Real-time dashboards, single-point monitoring, alerts
+
+---
+
+##### **Strategy B: Equipment-Level Batch** ⭐ PRIMARY FOR ML/AI
+
+**Format**: `{site}/{equipment}/batch`
+
+**Example**:
+```
+Topic: klcc/ahu_12/batch
+Payload: {
+  "timestamp": "2025-11-02T15:30:00+08:00",
+  "equipment": "ahu_12",
+  "site": "klcc",
+  "points": [
+    {
+      "name": "ai1",
+      "haystackName": "klcc.ahu.12.sensor.temp.air.supply.actual",
+      "value": 22.5,
+      "units": "degreesCelsius",
+      "quality": "good"
+    },
+    {
+      "name": "ai2",
+      "haystackName": "klcc.ahu.12.sensor.temp.air.return.actual",
+      "value": 24.0,
+      "units": "degreesCelsius",
+      "quality": "good"
+    },
+    {
+      "name": "ao1",
+      "haystackName": "klcc.ahu.12.cmd.pos.chilled-water.coil.effective",
+      "value": 45.0,
+      "units": "percent",
+      "quality": "good"
+    }
+  ],
+  "metadata": {
+    "pollCycle": 123,
+    "totalPoints": 25,
+    "successfulReads": 25,
+    "failedReads": 0
+  }
+}
+
+QoS: 1
+Retain: false (historical → InfluxDB)
+Frequency: Once per poll cycle (all points together)
+```
+
+**Benefits for ML/AI**:
+- ✅ **Synchronized Timestamps**: All points polled together
+- ✅ **Complete Feature Vector**: All inputs in one message
+- ✅ **Missing Data Detection**: Know exactly which points failed
+- ✅ **Efficient Parsing**: 1 subscription, 1 JSON parse → complete dataset
+- ✅ **Reduced Overhead**: 1 topic instead of 50 individual subscriptions
+
+**Why Critical**: ML training requires all features (inputs) with the same timestamp. Individual topics create timestamp misalignment issues.
+
+---
+
+##### **Strategy C: Site-Level Bulk** (Optional)
+
+**Format**: `{site}/data/bulk`
+
+**Example**:
+```
+Topic: klcc/data/bulk
+Payload: {
+  "timestamp": "2025-11-02T15:30:00+08:00",
+  "site": "klcc",
+  "pollCycle": 123,
+  "equipment": [
+    { "equipmentId": "ahu_12", "type": "ahu", "points": [...] },
+    { "equipmentId": "chiller_01", "type": "chiller", "points": [...] }
+  ]
+}
+```
+
+**Use Case**: Cross-equipment ML models, data warehouse ingestion, backup
+
+---
+
+#### 4. MQTT Topic Documentation & Export ✅
+
+**Decision**: Both in-app display AND downloadable exports
+
+**Implementation**:
+
+**A. In-App Display** (Points Page):
+- Add "MQTT Topic" column to points table
+- Copy-to-clipboard button per topic
+- Visual indication of publishing status
+
+**B. Downloadable Exports**:
+
+**1. Topic List** (`mqtt_topics.txt`):
+```
+# BacPipes MQTT Topics Reference
+# Site: klcc
+# Generated: 2025-11-02 15:30:00
+
+klcc/ahu_12/ai1/presentValue    # Supply Air Temperature (°C)
+klcc/ahu_12/ai2/presentValue    # Return Air Temperature (°C)
+klcc/ahu_12/batch               # Equipment batch (all points)
+```
+
+**2. Subscriber Guide** (`mqtt_subscription_guide.json`):
+```json
+{
+  "broker": "10.0.60.2:1883",
+  "generatedAt": "2025-11-02T15:30:00+08:00",
+  "site": "klcc",
+  "topics": [
+    {
+      "topic": "klcc/ahu_12/ai1/presentValue",
+      "description": "Supply Air Temperature",
+      "units": "degreesCelsius",
+      "haystackName": "klcc.ahu.12.sensor.temp.air.supply.actual",
+      "updateInterval": 60,
+      "qos": 1,
+      "retain": true
+    },
+    {
+      "topic": "klcc/ahu_12/batch",
+      "description": "AHU-12 Equipment Batch (25 points)",
+      "format": "equipment_batch",
+      "updateInterval": 60,
+      "qos": 1,
+      "retain": false,
+      "pointCount": 25
+    }
+  ]
+}
+```
+
+**3. AsyncAPI Specification** (Future):
+- Auto-generated from database
+- Industry-standard MQTT API documentation
+
+---
+
+#### 5. MQTT Payload Standards for ML/AI
+
+**Required Fields** (ALWAYS include):
+```json
+{
+  "timestamp": "2025-11-02T15:30:00+08:00",  // ISO 8601 with timezone
+  "value": 22.5,                              // Numeric (never string!)
+  "units": "degreesCelsius",                  // For unit conversion
+  "quality": "good",                          // good | uncertain | bad
+  "haystackName": "klcc.ahu.12.sensor..."    // Semantic meaning
+}
+```
+
+**Optional but Helpful**:
+```json
+{
+  "deviceTime": "2025-11-02T15:29:58+08:00", // DDC controller timestamp
+  "pollDuration": 1.2,                        // Read time (seconds)
+  "confidence": 0.95,                         // ML validation score
+  "outlier": false,                           // Outlier detection flag
+  "interpolated": false                       // Interpolation flag
+}
+```
+
+**Data Quality Flags**:
+- `good`: Valid, reliable measurement
+- `uncertain`: Value read successfully but questionable (e.g., sensor drift)
+- `bad`: Communication error, null value, or failed read
+
+---
+
+### Implementation Priority (Next Steps)
+
+**Current Status**: M3 completed (Haystack tagging UI with meta-data support)
+
+**Immediate Tasks** (Nov 2, 2025):
+
+**Task A**: Add Navigation Layout ✅ NEXT
+- Create shared `layout.tsx` with navigation bar
+- Add icons/logos for visual hierarchy
+- Implement active route highlighting
+- Mobile-responsive design
+- Estimated: 30 minutes
+
+**Task B**: MQTT Topic Export Functionality ⏳
+- Add "MQTT Topic" column to points table
+- Copy-to-clipboard functionality
+- Export topics list (TXT)
+- Export subscriber guide (JSON)
+- Estimated: 30 minutes
+
+**Task C**: Design Batched Publishing Strategy ⏳
+- Update worker to publish both individual AND batch topics
+- Implement equipment-level batching
+- Add metadata (poll cycle, success/failure counts)
+- Requires M4 (MQTT Publishing Worker)
+- Estimated: M4 implementation
+
+---
+
+## Haystack Tagging Enhancements (Nov 2, 2025)
+
+### Meta-Data Point Support ✅
+
+**Added Quantities** for BACnet Schedule/Calendar/DateTime objects:
+- `schedule` - BACnet Schedule objects (weekly, exception schedules)
+- `calendar` - BACnet Calendar objects (holidays, special dates)
+- `datetime` - BACnet DateTime value objects
+- `date` - BACnet Date value objects
+
+**Smart Validation**:
+- Meta-data points allow blank `subject` and `location` fields
+- Example: `klcc.ahu.12.sp.schedule..auto` (double dots = blank fields)
+- Regular points still require all 8 Haystack fields
+
+**UI Enhancements**:
+- Grouped in "Meta-Data / Scheduling" optgroup
+- Visual indicator when meta-data quantity selected
+- Dynamic field labels (optional vs required)
+- Common patterns reference includes scheduling examples
+
+**Use Cases**:
+- Occupancy schedules
+- Temperature setpoint schedules
+- Equipment start/stop schedules
+- Holiday calendars
+- Time synchronization points
+
+---
+
 ## Next Steps
 
-**Immediate Action**: Begin Milestone 1 (Foundation & Hello World)
+**Immediate Action**: Implement navigation layout (Task A)
 
 1. Create project directory structure
 2. Write `docker-compose.yml`

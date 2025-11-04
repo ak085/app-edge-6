@@ -1,9 +1,8 @@
 # BacPipes Worker Requirements
 # Python 3.10
 
-# BACnet Libraries
-BAC0==2025.6.10
-BACpypes3==0.0.102  # Used for discovery
+# BACnet Library (using BACpypes3 directly, proven working approach)
+BACpypes3==0.0.102
 
 # MQTT
 paho-mqtt==2.1.0
@@ -13,6 +12,9 @@ psycopg2-binary==2.9.9
 
 # Configuration
 python-dotenv==1.0.0
+
+# Timezone handling
+pytz==2024.1
 
 # InfluxDB (optional)
 influxdb-client==1.49.0

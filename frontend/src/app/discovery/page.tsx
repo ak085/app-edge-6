@@ -27,7 +27,7 @@ export default function DiscoveryPage() {
   // Configuration
   const [ipAddress, setIpAddress] = useState("192.168.1.35");
   const [bacnetPort, setBacnetPort] = useState("47808");
-  const [timeout, setTimeout] = useState("15");
+  const [discoveryTimeout, setDiscoveryTimeout] = useState("15");
   const [deviceId, setDeviceId] = useState("3001234");
 
   // Discovery state
@@ -37,9 +37,10 @@ export default function DiscoveryPage() {
     pointsFound: 0,
   });
 
-  // Load network interfaces on mount
+  // Load network interfaces and existing discovery data on mount
   useEffect(() => {
     loadNetworkInterfaces();
+    loadExistingDiscovery();
   }, []);
 
   // Poll discovery status when running
@@ -63,12 +64,70 @@ export default function DiscoveryPage() {
       const response = await fetch("/api/network/interfaces");
       if (response.ok) {
         const data = await response.json();
-        setInterfaces(data.interfaces || []);
+        const loadedInterfaces = data.interfaces || [];
+        setInterfaces(loadedInterfaces);
+
+        // Auto-select the first interface if available
+        if (loadedInterfaces.length > 0) {
+          const firstInterface = loadedInterfaces[0];
+          console.log("[Discovery] Auto-selecting first interface:", firstInterface.address);
+          setIpAddress(firstInterface.address);
+        }
       }
     } catch (error) {
       console.error("Failed to load network interfaces:", error);
     } finally {
       setLoadingInterfaces(false);
+    }
+  }
+
+  async function loadExistingDiscovery() {
+    try {
+      console.log("[Discovery] Loading existing discovery data...");
+
+      // Load devices and points from database to show existing discovery results
+      const [devicesResponse, pointsResponse] = await Promise.all([
+        fetch("/api/devices"),
+        fetch("/api/points"),
+      ]);
+
+      console.log("[Discovery] Devices response:", devicesResponse.status);
+      console.log("[Discovery] Points response:", pointsResponse.status);
+
+      if (devicesResponse.ok && pointsResponse.ok) {
+        const devicesData = await devicesResponse.json();
+        const pointsData = await pointsResponse.json();
+
+        console.log("[Discovery] Devices data:", devicesData);
+        console.log("[Discovery] Points data:", pointsData);
+
+        const devicesCount = devicesData.devices?.length || 0;
+        const pointsCount = pointsData.points?.length || 0;
+
+        console.log("[Discovery] Found devices:", devicesCount, "points:", pointsCount);
+
+        if (devicesCount > 0 || pointsCount > 0) {
+          // Get the most recent discovery timestamp
+          const latestDevice = devicesData.devices?.[0];
+          const discoveredAt = latestDevice?.discoveredAt;
+
+          console.log("[Discovery] Setting status to complete with counts");
+
+          setDiscoveryStatus({
+            status: "complete",
+            devicesFound: devicesCount,
+            pointsFound: pointsCount,
+            progress: "Loaded from database",
+            completedAt: discoveredAt,
+          });
+        } else {
+          console.log("[Discovery] No devices or points found, keeping idle state");
+        }
+      } else {
+        console.error("[Discovery] API responses not ok");
+      }
+    } catch (error) {
+      console.error("Failed to load existing discovery data:", error);
     }
   }
 
@@ -87,7 +146,7 @@ export default function DiscoveryPage() {
         body: JSON.stringify({
           ipAddress,
           port: parseInt(bacnetPort),
-          timeout: parseInt(timeout),
+          timeout: parseInt(discoveryTimeout),
           deviceId: parseInt(deviceId),
         }),
       });
@@ -132,6 +191,13 @@ export default function DiscoveryPage() {
           errorMessage: data.errorMessage,
           completedAt: data.completedAt,
         }));
+
+        // If discovery just completed, reload from database to ensure accuracy
+        if (data.status === "complete") {
+          setTimeout(() => {
+            loadExistingDiscovery();
+          }, 1000); // Small delay to ensure database is updated
+        }
       }
     } catch (error) {
       console.error("Failed to check discovery status:", error);
@@ -141,11 +207,8 @@ export default function DiscoveryPage() {
   async function stopDiscovery() {
     try {
       await fetch("/api/discovery/stop", { method: "POST" });
-      setDiscoveryStatus({
-        status: "idle",
-        devicesFound: 0,
-        pointsFound: 0,
-      });
+      // Reload from database instead of resetting to 0
+      await loadExistingDiscovery();
     } catch (error) {
       console.error("Failed to stop discovery:", error);
     }
@@ -230,8 +293,8 @@ export default function DiscoveryPage() {
                 </label>
                 <input
                   type="number"
-                  value={timeout}
-                  onChange={(e) => setTimeout(e.target.value)}
+                  value={discoveryTimeout}
+                  onChange={(e) => setDiscoveryTimeout(e.target.value)}
                   className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
                   disabled={discoveryStatus.status === "running"}
                 />

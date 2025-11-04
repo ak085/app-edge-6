@@ -1,19 +1,35 @@
+# BacPipes Worker Dockerfile
+# Python 3.10 BACnet MQTT Publishing Service
+
 FROM python:3.10-slim
 
-WORKDIR /app
-
-# Install system dependencies
+# Install system dependencies for psycopg2 and BACnet
 RUN apt-get update && apt-get install -y \
     gcc \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY mqtt_publisher.py .
 
-# Worker will be implemented in M4
-# For now, just keep container running
-CMD ["tail", "-f", "/dev/null"]
+# Create non-root user for security
+RUN useradd -m -u 1000 bacpipes && \
+    chown -R bacpipes:bacpipes /app
+
+USER bacpipes
+
+# Health check - verify database connection
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1
+
+# Run the MQTT publisher with unbuffered output for logging
+CMD ["python", "-u", "mqtt_publisher.py"]

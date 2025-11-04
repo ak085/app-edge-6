@@ -52,13 +52,17 @@ model Point {
   description           String?
   units                 String?   // Engineering units (e.g., "degreesCelsius", "percent")
 
-  // Haystack tagging (for MQTT topic generation)
+  // Haystack tagging (for MQTT topic generation and point naming)
   siteId                String?   // e.g., "klcc", "menara"
-  equipmentType         String?   // e.g., "AHU", "VAV", "Chiller"
+  equipmentType         String?   // e.g., "ahu", "vav", "chiller"
   equipmentId           String?   // e.g., "12", "north_wing_01"
-  pointFunction         String?   // e.g., "sensor", "setpoint", "command"
-  pointType             String?   // e.g., "temp", "pressure", "flow"
-  haystackPointName     String?   // Custom haystack tag
+  pointFunction         String?   // e.g., "sp", "cmd", "sensor"
+  quantity              String?   // e.g., "temp", "speed", "pos", "pressure"
+  subject               String?   // e.g., "air", "water", "chilled-water"
+  location              String?   // e.g., "supply", "return", "coil"
+  qualifier             String?   // e.g., "effective", "min", "max", "enable"
+  haystackPointName     String?   // Auto-generated: {site}.{equip_type}.{equip_id}.{func}.{qty}.{subj}.{loc}.{qual}
+  dis                   String?   // Human-readable display name
 
   // MQTT configuration
   enabled               Boolean   @default(true)   // Point enabled for discovery display
@@ -111,6 +115,9 @@ model MqttConfig {
   // Topics
   writeCommandTopic String    @default("bacnet/write/command")
   writeResultTopic  String    @default("bacnet/write/result")
+
+  // Publishing Options
+  enableBatchPublishing Boolean @default(false)  // Publish equipment-level batch topics (for ML/AI)
 
   // Status
   enabled           Boolean   @default(true)

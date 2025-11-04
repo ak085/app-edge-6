@@ -39,32 +39,98 @@ interface PointEditorProps {
   onSave: () => void;
 }
 
-// Dropdown options for Haystack tags
-const EQUIPMENT_TYPES = ["AHU", "VAV", "FCU", "Chiller", "CHWP", "CWP", "CT", "Boiler", "Spare"];
-const POINT_FUNCTIONS = ["sensor", "setpoint", "command", "status", "alarm", "enable"];
-const POINT_TYPES = [
-  "temp",
-  "pressure",
-  "flow",
-  "humidity",
-  "speed",
-  "power",
-  "current",
-  "voltage",
-  "position",
-  "percent",
-];
+// Dropdown options for Haystack tags (based on Project Haystack standard)
 const SITE_ID_OPTIONS = ["klcc", "menara", "plant_a"];
+const EQUIPMENT_TYPES = ["ahu", "vav", "fcu", "chiller", "chwp", "cwp", "ct", "boiler", "spare"];
+
+// Point Function: What does this point DO?
+const POINT_FUNCTIONS = [
+  "sensor",     // Measures/reads values (AI/BI inputs)
+  "sp",         // Sets target/desired values (setpoints)
+  "cmd",        // Commands/controls equipment (AO/BO outputs)
+  "synthetic",  // Computed/calculated data
+];
+
+// Quantity: What PHYSICAL PROPERTY?
+const QUANTITIES = [
+  "temp",       // Temperature
+  "humidity",   // Humidity/moisture
+  "co2",        // Carbon dioxide concentration
+  "flow",       // Flow rate (air CFM, water GPM)
+  "pressure",   // Static/differential pressure
+  "speed",      // Rotational speed (RPM)
+  "power",      // Electrical power
+  "run",        // Run/enable status
+  "pos",        // Position (damper, valve, actuator)
+  "level",      // Tank/reservoir level
+  "occupancy",  // Occupancy detection
+  "enthalpy",   // Air enthalpy (energy content)
+  "dewpoint",   // Dew point temperature
+  "schedule",   // Schedule objects (weekly, exception)
+  "calendar",   // Calendar objects (holidays, special dates)
+  "datetime",   // DateTime value objects
+  "date",       // Date value objects
+];
+
+// Meta-data quantities that may not require subject/location
+const META_DATA_QUANTITIES = ["schedule", "calendar", "datetime", "date"];
+
+// Subject: What SUBSTANCE/MEDIUM?
+const SUBJECTS = [
+  "air",            // Air systems (HVAC)
+  "water",          // Generic/domestic water
+  "chilled-water",  // Chilled water systems
+  "hot-water",      // Hot water systems
+  "steam",          // Steam systems
+  "refrig",         // Refrigerant (DX systems)
+  "gas",            // Natural gas/propane
+];
+
+// Location: WHERE in the system?
+const LOCATIONS = [
+  "zone",       // Room/space level
+  "supply",     // Supply air path
+  "return",     // Return air path
+  "outside",    // Outdoor conditions
+  "mixed",      // Mixed air section
+  "exhaust",    // Exhaust air path
+  "entering",   // Entering water/fluid
+  "leaving",    // Leaving water/fluid
+  "coil",       // Heating/cooling coil
+  "filter",     // Filter section
+  "economizer", // Economizer section
+];
+
+// Qualifier: What TYPE/ROLE of point?
+const QUALIFIERS = [
+  "actual",     // Measured/feedback value
+  "effective",  // Current active setpoint
+  "min",        // Minimum limit/setpoint
+  "max",        // Maximum limit/setpoint
+  "nominal",    // Design/rated value
+  "alarm",      // Alarm/status indication
+  "enable",     // Enable/disable command
+  "reset",      // Reset/restart command
+  "manual",     // Manual override value
+  "auto",       // Automatic control value
+];
 
 export default function PointEditor({ point, isOpen, onClose, onSave }: PointEditorProps) {
-  // Form state
+  // Form state - Haystack tagging (8 fields)
   const [siteId, setSiteId] = useState(point.siteId || "");
   const [customSiteId, setCustomSiteId] = useState("");
   const [equipmentType, setEquipmentType] = useState(point.equipmentType || "");
   const [equipmentId, setEquipmentId] = useState(point.equipmentId || "");
   const [pointFunction, setPointFunction] = useState(point.pointFunction || "");
-  const [pointType, setPointType] = useState(point.pointType || "");
-  const [haystackPointName, setHaystackPointName] = useState(point.haystackPointName || "");
+  const [quantity, setQuantity] = useState(point.quantity || "");
+  const [subject, setSubject] = useState(point.subject || "");
+  const [location, setLocation] = useState(point.location || "");
+  const [qualifier, setQualifier] = useState(point.qualifier || "");
+
+  // Display name
+  const [dis, setDis] = useState(point.dis || "");
+
+  // MQTT configuration
   const [mqttPublish, setMqttPublish] = useState(point.mqttPublish);
   const [pollInterval, setPollInterval] = useState(point.pollInterval.toString());
   const [qos, setQos] = useState(point.qos.toString());
@@ -96,8 +162,11 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
           equipmentType,
           equipmentId,
           pointFunction,
-          pointType,
-          haystackPointName,
+          quantity,
+          subject,
+          location,
+          qualifier,
+          dis,
           mqttPublish,
           pollInterval: parseInt(pollInterval),
           qos: parseInt(qos),
@@ -155,121 +224,276 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
             </div>
           </div>
 
-          {/* Haystack Tags */}
+          {/* Haystack Tags - From Bulk Config */}
           <div>
             <h3 className="text-lg font-semibold mb-4">Haystack Tags</h3>
+
+            {/* Decision Tree Guide */}
+            <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-lg">
+              <h4 className="text-sm font-semibold mb-2 text-amber-900">📋 Quick Decision Tree</h4>
+              <ol className="text-xs text-amber-800 space-y-1 list-decimal list-inside">
+                <li><strong>What does it DO?</strong> → Choose Point Function (sensor, sp, cmd, synthetic)</li>
+                <li><strong>What does it measure/control?</strong> → Choose Quantity (temp, flow, pressure, etc.)</li>
+                <li><strong>What substance/medium?</strong> → Choose Subject (air, water, chilled-water, etc.)</li>
+                <li><strong>Where in the system?</strong> → Choose Location (zone, supply, return, etc.)</li>
+                <li><strong>What type/role?</strong> → Choose Qualifier (actual, effective, min, max, etc.)</li>
+              </ol>
+            </div>
+
+            <p className="text-sm text-muted-foreground mb-4">
+              Site ID and Equipment are set via Bulk Configuration. Edit the remaining 5 fields below.
+            </p>
+
+            {/* Read-only fields from bulk config */}
+            <div className="bg-muted/30 p-4 rounded-lg mb-4">
+              <h4 className="text-sm font-semibold mb-2">From Bulk Configuration (Read-Only)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Site ID:</span>
+                  <div className="font-medium">{siteId || <span className="text-red-500">Not set - use Bulk Config</span>}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Equipment Type:</span>
+                  <div className="font-medium">{equipmentType || <span className="text-red-500">Not set - use Bulk Config</span>}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Equipment ID:</span>
+                  <div className="font-medium">{equipmentId || <span className="text-red-500">Not set - use Bulk Config</span>}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Editable fields - 5 remaining */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Site ID */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Site ID <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={siteId}
-                  onChange={(e) => setSiteId(e.target.value)}
-                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
-                >
-                  <option value="">Select Site...</option>
-                  {SITE_ID_OPTIONS.map((site) => (
-                    <option key={site} value={site}>
-                      {site}
-                    </option>
-                  ))}
-                  <option value="custom">Custom...</option>
-                </select>
-                {siteId === "custom" && (
-                  <input
-                    type="text"
-                    value={customSiteId}
-                    onChange={(e) => setCustomSiteId(e.target.value)}
-                    placeholder="Enter custom site ID"
-                    className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md mt-2"
-                  />
-                )}
-              </div>
-
-              {/* Equipment Type */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Equipment Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={equipmentType}
-                  onChange={(e) => setEquipmentType(e.target.value)}
-                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
-                >
-                  <option value="">Select Equipment...</option>
-                  {EQUIPMENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Equipment ID */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Equipment ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={equipmentId}
-                  onChange={(e) => setEquipmentId(e.target.value)}
-                  placeholder="e.g., 12, north_wing_01"
-                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Unique identifier for this equipment
-                </p>
-              </div>
 
               {/* Point Function */}
               <div>
-                <label className="block text-sm font-medium mb-2">Point Function</label>
+                <label className="block text-sm font-medium mb-2">
+                  Point Function <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={pointFunction}
                   onChange={(e) => setPointFunction(e.target.value)}
                   className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
                 >
                   <option value="">Select Function...</option>
-                  {POINT_FUNCTIONS.map((func) => (
-                    <option key={func} value={func}>
-                      {func}
-                    </option>
-                  ))}
+                  <option value="sensor">sensor - Measures/reads values (AI/BI inputs)</option>
+                  <option value="sp">sp - Sets target/desired values (setpoints)</option>
+                  <option value="cmd">cmd - Commands/controls equipment (AO/BO outputs)</option>
+                  <option value="synthetic">synthetic - Computed/calculated data</option>
                 </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  What does this point DO?
+                </p>
               </div>
 
-              {/* Point Type */}
+              {/* Quantity */}
               <div>
-                <label className="block text-sm font-medium mb-2">Point Type</label>
+                <label className="block text-sm font-medium mb-2">
+                  Quantity <span className="text-red-500">*</span>
+                </label>
                 <select
-                  value={pointType}
-                  onChange={(e) => setPointType(e.target.value)}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
                   className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
                 >
-                  <option value="">Select Type...</option>
-                  {POINT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
+                  <option value="">Select Quantity...</option>
+                  <option value="temp">temp - Temperature</option>
+                  <option value="humidity">humidity - Humidity/moisture</option>
+                  <option value="co2">co2 - Carbon dioxide concentration</option>
+                  <option value="flow">flow - Flow rate (air CFM, water GPM)</option>
+                  <option value="pressure">pressure - Static/differential pressure</option>
+                  <option value="speed">speed - Rotational speed (RPM)</option>
+                  <option value="power">power - Electrical power</option>
+                  <option value="run">run - Run/enable status</option>
+                  <option value="pos">pos - Position (damper, valve, actuator)</option>
+                  <option value="level">level - Tank/reservoir level</option>
+                  <option value="occupancy">occupancy - Occupancy detection</option>
+                  <option value="enthalpy">enthalpy - Air enthalpy (energy content)</option>
+                  <option value="dewpoint">dewpoint - Dew point temperature</option>
+                  <optgroup label="Meta-Data / Scheduling">
+                    <option value="schedule">schedule - Schedule objects (weekly, exception)</option>
+                    <option value="calendar">calendar - Calendar objects (holidays, special dates)</option>
+                    <option value="datetime">datetime - DateTime value objects</option>
+                    <option value="date">date - Date value objects</option>
+                  </optgroup>
                 </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  What PHYSICAL PROPERTY does it measure/control?
+                </p>
+                {META_DATA_QUANTITIES.includes(quantity) && (
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    ℹ️ Meta-data point: Subject and Location may be left blank for schedule/calendar/date/time points
+                  </p>
+                )}
               </div>
 
-              {/* Custom Tag */}
+              {/* Subject */}
               <div>
-                <label className="block text-sm font-medium mb-2">Custom Tag (Optional)</label>
-                <input
-                  type="text"
-                  value={haystackPointName}
-                  onChange={(e) => setHaystackPointName(e.target.value)}
-                  placeholder="Custom identifier"
+                <label className="block text-sm font-medium mb-2">
+                  Subject {META_DATA_QUANTITIES.includes(quantity) ? (
+                    <span className="text-muted-foreground">(optional for meta-data)</span>
+                  ) : (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
                   className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
-                />
+                >
+                  <option value="">Select Subject...</option>
+                  {META_DATA_QUANTITIES.includes(quantity) && (
+                    <option value="">— None (leave blank) —</option>
+                  )}
+                  <option value="air">air - Air systems (HVAC)</option>
+                  <option value="water">water - Generic/domestic water</option>
+                  <option value="chilled-water">chilled-water - Chilled water systems</option>
+                  <option value="hot-water">hot-water - Hot water systems</option>
+                  <option value="steam">steam - Steam systems</option>
+                  <option value="refrig">refrig - Refrigerant (DX systems)</option>
+                  <option value="gas">gas - Natural gas/propane</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  What SUBSTANCE/MEDIUM does it relate to?
+                </p>
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Location {META_DATA_QUANTITIES.includes(quantity) ? (
+                    <span className="text-muted-foreground">(optional for meta-data)</span>
+                  ) : (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <select
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                >
+                  <option value="">Select Location...</option>
+                  {META_DATA_QUANTITIES.includes(quantity) && (
+                    <option value="">— None (leave blank) —</option>
+                  )}
+                  <option value="zone">zone - Room/space level</option>
+                  <option value="supply">supply - Supply air/water path</option>
+                  <option value="return">return - Return air/water path</option>
+                  <option value="outside">outside - Outdoor conditions</option>
+                  <option value="mixed">mixed - Mixed air section</option>
+                  <option value="exhaust">exhaust - Exhaust air path</option>
+                  <option value="entering">entering - Entering water/fluid</option>
+                  <option value="leaving">leaving - Leaving water/fluid</option>
+                  <option value="coil">coil - Heating/cooling coil</option>
+                  <option value="filter">filter - Filter section</option>
+                  <option value="economizer">economizer - Economizer section</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  WHERE in the system is this point?
+                </p>
+              </div>
+
+              {/* Qualifier */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Qualifier <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={qualifier}
+                  onChange={(e) => setQualifier(e.target.value)}
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                >
+                  <option value="">Select Qualifier...</option>
+                  <option value="actual">actual - Measured/feedback value</option>
+                  <option value="effective">effective - Current active setpoint</option>
+                  <option value="min">min - Minimum limit/setpoint</option>
+                  <option value="max">max - Maximum limit/setpoint</option>
+                  <option value="nominal">nominal - Design/rated value</option>
+                  <option value="alarm">alarm - Alarm/status indication</option>
+                  <option value="enable">enable - Enable/disable command</option>
+                  <option value="reset">reset - Reset/restart command</option>
+                  <option value="manual">manual - Manual override value</option>
+                  <option value="auto">auto - Automatic control value</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  What TYPE/ROLE is this point?
+                </p>
               </div>
             </div>
+
+            {/* Display Name */}
+            <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+              <label className="block text-sm font-semibold mb-2 text-blue-900">
+                Display Name (dis) - Custom Description
+              </label>
+              <input
+                type="text"
+                value={dis}
+                onChange={(e) => setDis(e.target.value)}
+                placeholder="e.g., AHU-12 Supply Air Temperature"
+                className="input w-full bg-white border-2 border-input px-3 py-2 rounded-md"
+              />
+              <p className="text-xs text-blue-700 mt-2 font-medium">
+                💡 Provide a clear, human-readable description for this point. This is especially useful when the original point name is unclear or technical.
+              </p>
+            </div>
+
+            {/* Common Patterns Quick Reference */}
+            <details className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold cursor-pointer text-gray-700">
+                💡 Common Haystack Patterns (Click to expand)
+              </summary>
+              <div className="mt-3 space-y-2 text-xs text-gray-600">
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Temperature Sensors:</strong> sensor + temp + air/water + zone/supply/return + actual
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Temperature Setpoints:</strong> sp + temp + air + zone + effective/min/max
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Fan Speed Commands:</strong> cmd + speed + air + supply + effective
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Valve Positions:</strong> cmd + pos + chilled-water/hot-water + coil + effective
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Run Status:</strong> sensor + run + air/water + supply/— + actual
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Start/Stop Commands:</strong> cmd + run + air/water + supply/— + enable
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Pressure Sensors:</strong> sensor + pressure + air + supply/filter + actual
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Flow Rate:</strong> sensor + flow + air/chilled-water + supply/entering + actual
+                  </div>
+                  <div className="p-2 bg-amber-50 rounded border-2 border-amber-300">
+                    <strong className="text-amber-900">📅 Meta-Data / Scheduling Points:</strong>
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Occupancy Schedule:</strong> sp + schedule + (blank) + (blank) + auto
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Temp Setpoint Schedule:</strong> sp + schedule + air + zone + auto
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Equipment Schedule:</strong> sp + schedule + air/water + (blank) + auto
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Holiday Calendar:</strong> sp + calendar + (blank) + (blank) + effective
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>DateTime Value:</strong> sensor + datetime + (blank) + (blank) + actual
+                  </div>
+                  <div className="bg-white p-2 rounded border border-gray-200">
+                    <strong>Date Value:</strong> sensor + date + (blank) + (blank) + actual
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
 
           {/* MQTT Configuration */}
