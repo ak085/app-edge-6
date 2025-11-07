@@ -168,21 +168,27 @@ class MqttPublisher:
         """Load MQTT configuration from database"""
         try:
             cursor = self.db_conn.cursor()
-            cursor.execute('SELECT "enableBatchPublishing" FROM "MqttConfig" LIMIT 1')
+            cursor.execute('SELECT broker, port, "clientId", "enableBatchPublishing" FROM "MqttConfig" LIMIT 1')
             result = cursor.fetchone()
             cursor.close()
 
             if result:
+                # Override with database settings (Settings GUI is source of truth)
+                self.mqtt_broker = result['broker']
+                self.mqtt_port = result['port']
+                self.mqtt_client_id = result['clientId'] or self.mqtt_client_id
                 self.enable_batch_publishing = result['enableBatchPublishing']
+
+                logger.info(f"📋 MQTT Broker from database: {self.mqtt_broker}:{self.mqtt_port}")
                 logger.info(f"📋 Batch Publishing: {'ENABLED' if self.enable_batch_publishing else 'DISABLED'}")
             else:
-                logger.warning("⚠️  No MQTT config found in database, using default (batch disabled)")
+                logger.warning("⚠️  No MQTT config found in database, using environment defaults")
                 self.enable_batch_publishing = False
 
             return True
         except Exception as e:
             logger.error(f"❌ Failed to load MQTT config: {e}")
-            logger.warning("⚠️  Using default: batch publishing disabled")
+            logger.warning("⚠️  Using environment defaults")
             self.enable_batch_publishing = False
             return False
 

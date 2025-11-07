@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
+import {
+  Activity, Wifi, WifiOff, Search, Pause, Play, X, Edit,
+  BarChart3, Filter as FilterIcon
+} from 'lucide-react';
 
 interface MqttMessage {
   topic: string;
@@ -315,19 +319,31 @@ export default function MonitoringPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Real-Time Monitoring</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <Activity className="w-8 h-8 text-purple-500" />
+          <h1 className="text-3xl font-bold">Real-Time Monitoring</h1>
+        </div>
         <p className="text-muted-foreground">
           Live MQTT data stream from BACnet devices
         </p>
       </div>
 
       {/* Connection Status Card */}
-      <div className="card bg-card p-6 rounded-lg border-2 border-border mb-6">
+      <div className={`card bg-card p-6 rounded-lg border-2 mb-6 ${
+        connectionStatus.connected ? 'border-green-300 border-l-4 border-l-green-500' : 'border-red-300 border-l-4 border-l-red-500'
+      }`}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
-              {connectionStatus.connected ? '🟢' : '🔴'} Connection Status
-            </h2>
+            <div className="flex items-center gap-2 mb-2">
+              {connectionStatus.connected ? (
+                <Wifi className="w-6 h-6 text-green-500" />
+              ) : (
+                <WifiOff className="w-6 h-6 text-red-500" />
+              )}
+              <h2 className={`text-xl font-semibold ${connectionStatus.connected ? 'text-green-700' : 'text-red-700'}`}>
+                Connection Status
+              </h2>
+            </div>
             <div className="space-y-1 text-sm">
               <p>
                 <span className="font-medium">MQTT Broker:</span>{' '}
@@ -357,6 +373,10 @@ export default function MonitoringPage() {
 
           {/* Statistics */}
           <div className="text-right">
+            <div className="flex items-center justify-end gap-2 mb-1">
+              <BarChart3 className="w-5 h-5 text-blue-500" />
+              <p className="text-sm font-medium text-muted-foreground">Statistics</p>
+            </div>
             <p className="text-2xl font-bold">{latestValues.size}</p>
             <p className="text-sm text-muted-foreground">Unique Points</p>
             <p className="text-lg font-semibold mt-2">{filteredMessages.length}</p>
@@ -370,7 +390,8 @@ export default function MonitoringPage() {
         <div className="flex flex-wrap items-center gap-4">
           {/* Filter */}
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium mb-1">
+            <label className="flex items-center gap-2 text-sm font-medium mb-1">
+              <Search className="w-4 h-4 text-blue-500" />
               Filter by Topic
             </label>
             <input
@@ -386,19 +407,30 @@ export default function MonitoringPage() {
           <div className="flex gap-2 mt-auto">
             <button
               onClick={handleTogglePause}
-              className={`px-4 py-2 rounded-md font-medium ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium ${
                 paused
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : 'bg-yellow-600 hover:bg-yellow-700 text-white'
               }`}
             >
-              {paused ? '▶️ Resume' : '⏸️ Pause'}
+              {paused ? (
+                <>
+                  <Play className="w-4 h-4" />
+                  Resume
+                </>
+              ) : (
+                <>
+                  <Pause className="w-4 h-4" />
+                  Pause
+                </>
+              )}
             </button>
             <button
               onClick={handleClear}
-              className="px-4 py-2 rounded-md font-medium bg-red-600 hover:bg-red-700 text-white"
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-red-600 hover:bg-red-700 text-white"
             >
-              🗑️ Clear
+              <X className="w-4 h-4" />
+              Clear
             </button>
           </div>
         </div>
@@ -456,10 +488,11 @@ export default function MonitoringPage() {
                         {point && (
                           <button
                             onClick={() => handleOpenWriteModal(msg.topic, msg.payload)}
-                            className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium"
+                            className="flex items-center gap-1 px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium"
                             title={point.isWritable ? "Point is writable" : "Point writability not detected (may still work)"}
                           >
-                            ✏️ Write
+                            <Edit className="w-3 h-3" />
+                            Write
                           </button>
                         )}
                       </td>

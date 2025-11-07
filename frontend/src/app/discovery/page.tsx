@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  Search, Play, StopCircle, Settings, Server, Database,
+  CheckCircle, XCircle, Loader, AlertCircle
+} from "lucide-react";
 
 interface NetworkInterface {
   name: string;
@@ -219,9 +223,12 @@ export default function DiscoveryPage() {
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-foreground">BACnet Discovery</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <Search className="w-7 h-7 text-blue-500" />
+            <h1 className="text-2xl font-bold text-foreground">Network Discovery</h1>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Scan your BACnet network and discover devices
+            Scan your network and discover devices
           </p>
         </div>
       </header>
@@ -230,8 +237,11 @@ export default function DiscoveryPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Configuration Card */}
-          <div className="card bg-card p-6 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">Discovery Configuration</h2>
+          <div className="card bg-card p-6 rounded-lg border border-blue-200 border-l-4 border-l-blue-500">
+            <div className="flex items-center gap-2 mb-4">
+              <Settings className="w-5 h-5 text-blue-500" />
+              <h2 className="text-xl font-semibold text-blue-700">Discovery Configuration</h2>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* IP Address */}
@@ -326,18 +336,27 @@ export default function DiscoveryPage() {
               <button
                 onClick={startDiscovery}
                 disabled={discoveryStatus.status === "running"}
-                className="button px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 button px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {discoveryStatus.status === "running"
-                  ? "Discovery Running..."
-                  : "Start Discovery"}
+                {discoveryStatus.status === "running" ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Discovery Running...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Start Discovery
+                  </>
+                )}
               </button>
 
               {discoveryStatus.status === "running" && (
                 <button
                   onClick={stopDiscovery}
-                  className="button px-6 py-2 bg-destructive text-destructive-foreground rounded-md font-medium hover:opacity-90"
+                  className="flex items-center gap-2 button px-6 py-2 bg-destructive text-destructive-foreground rounded-md font-medium hover:opacity-90"
                 >
+                  <StopCircle className="w-4 h-4" />
                   Stop Discovery
                 </button>
               )}
@@ -347,42 +366,66 @@ export default function DiscoveryPage() {
           {/* Status Card */}
           {discoveryStatus.status !== "idle" && (
             <div
-              className={`card p-6 rounded-lg ${
+              className={`card p-6 rounded-lg border-2 border-l-4 ${
                 discoveryStatus.status === "running"
-                  ? "bg-blue-50 border-blue-200"
+                  ? "bg-blue-50 border-blue-200 border-l-blue-500"
                   : discoveryStatus.status === "complete"
-                  ? "bg-green-50 border-green-200"
-                  : "bg-red-50 border-red-200"
+                  ? "bg-green-50 border-green-200 border-l-green-500"
+                  : "bg-red-50 border-red-200 border-l-red-500"
               }`}
             >
-              <h3 className="text-lg font-semibold mb-3">
-                {discoveryStatus.status === "running" && "🔍 Discovery in Progress"}
-                {discoveryStatus.status === "complete" && "✅ Discovery Complete"}
-                {discoveryStatus.status === "error" && "❌ Discovery Failed"}
-              </h3>
+              <div className="flex items-center gap-2 mb-3">
+                {discoveryStatus.status === "running" && (
+                  <>
+                    <Loader className="w-6 h-6 text-blue-600 animate-spin" />
+                    <h3 className="text-lg font-semibold text-blue-700">Discovery in Progress</h3>
+                  </>
+                )}
+                {discoveryStatus.status === "complete" && (
+                  <>
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-700">Discovery Complete</h3>
+                  </>
+                )}
+                {discoveryStatus.status === "error" && (
+                  <>
+                    <XCircle className="w-6 h-6 text-red-600" />
+                    <h3 className="text-lg font-semibold text-red-700">Discovery Failed</h3>
+                  </>
+                )}
+              </div>
 
               {discoveryStatus.progress && (
                 <p className="text-sm mb-3">{discoveryStatus.progress}</p>
               )}
 
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Devices Found:</span>{" "}
-                  <span className="text-lg font-bold">
-                    {discoveryStatus.devicesFound}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <Server className="w-5 h-5 text-amber-500" />
+                  <div>
+                    <span className="font-medium">Devices Found:</span>{" "}
+                    <span className="text-lg font-bold">
+                      {discoveryStatus.devicesFound}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium">Points Found:</span>{" "}
-                  <span className="text-lg font-bold">
-                    {discoveryStatus.pointsFound}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-cyan-500" />
+                  <div>
+                    <span className="font-medium">Points Found:</span>{" "}
+                    <span className="text-lg font-bold">
+                      {discoveryStatus.pointsFound}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {discoveryStatus.errorMessage && (
-                <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-md text-sm text-red-800">
-                  {discoveryStatus.errorMessage}
+                <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-800">{discoveryStatus.errorMessage}</p>
+                  </div>
                 </div>
               )}
 

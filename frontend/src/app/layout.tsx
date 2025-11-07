@@ -3,8 +3,8 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 
 export const metadata: Metadata = {
-  title: "BacPipes - BACnet to MQTT Pipeline",
-  description: "BACnet device discovery, configuration, and MQTT publishing platform",
+  title: "Building Automation Control System",
+  description: "Network device discovery, configuration, and data publishing platform",
 };
 
 export default function RootLayout({

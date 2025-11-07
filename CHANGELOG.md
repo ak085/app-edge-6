@@ -5,6 +5,52 @@ All notable changes to BacPipes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2025-11-08
+
+### Added
+
+#### Dashboard
+- New Dashboard page (`/`) with system overview
+- Real-time statistics (devices, points, publishing status)
+- System status indicator (operational/degraded/error)
+- Configuration summary cards (BACnet, MQTT, System)
+- Discovered devices list with point counts
+- Recent point values table (top 10 most recent)
+- Quick navigation links to all pages
+- Auto-refresh every 10 seconds
+- Dashboard summary API endpoint (`/api/dashboard/summary`)
+
+#### UI Improvements
+- Icons added to all pages (Dashboard, Discovery, Points, Monitoring)
+- Consistent color scheme across application:
+  - Blue: Network/Infrastructure/Discovery
+  - Green: Success/MQTT/Active
+  - Red: Error/Inactive
+  - Purple: Monitoring/Live data
+  - Amber: Devices/Hardware
+  - Cyan: Data/Points
+- Left border color accents on cards for visual hierarchy
+- Professional lucide-react icons throughout
+- Navigation component with active route highlighting
+- Page headers with descriptive icons
+
+### Fixed
+- **MQTT Configuration Loading**: Worker now reads MQTT broker address from database (Settings GUI) instead of `.env` file
+  - Settings GUI is now the source of truth for MQTT configuration
+  - `.env` file serves as fallback default only
+  - Changes in Settings page take effect after worker restart
+- Batch publishing configuration correctly loaded from database
+
+### Changed
+- Disabled batch publishing by default (can be re-enabled in Settings)
+- MQTT configuration loading order: Database → Environment variables
+- Worker logs now show "MQTT Broker from database" when loading from Settings GUI
+
+### Documentation
+- Clarified batch publishing use cases (ML/AI vs monitoring)
+- Documented MQTT configuration hierarchy
+- Added explanation of synchronized timestamps in individual topics
+
 ## [0.6.0] - 2025-11-07
 
 ### Added

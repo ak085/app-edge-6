@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import PointEditor from "@/components/PointEditor";
-import { Copy, Download, FileText, Check } from "lucide-react";
+import {
+  Copy, Download, FileText, Check, Database, Settings,
+  Filter as FilterIcon, CheckSquare, X, Search, Edit
+} from "lucide-react";
 
 interface Device {
   id: number;
@@ -337,7 +340,7 @@ export default function PointsPage() {
   function exportTopicsTxt() {
     const enabledPoints = points.filter((p) => p.mqttPublish && p.mqttTopic);
 
-    let content = "# BacPipes MQTT Topics Reference\n";
+    let content = "# MQTT Topics Reference\n";
     content += `# Generated: ${new Date().toISOString()}\n`;
     content += `# Total Topics: ${enabledPoints.length}\n\n`;
 
@@ -450,10 +453,24 @@ export default function PointsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
+      {/* Page Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Database className="w-8 h-8 text-cyan-500" />
+          <h1 className="text-3xl font-bold">Points Configuration</h1>
+        </div>
+        <p className="text-muted-foreground">
+          Configure Haystack tags, MQTT publishing, and polling intervals for discovered BACnet points
+        </p>
+      </div>
+
+      <div className="space-y-6">
           {/* Bulk Configuration Card */}
-          <div className="card bg-card p-6 rounded-lg border-2 border-primary/20">
-            <h2 className="text-lg font-semibold mb-2">Bulk Configuration</h2>
+          <div className="card bg-card p-6 rounded-lg border-2 border-blue-200 border-l-4 border-l-blue-500">
+            <div className="flex items-center gap-2 mb-2">
+              <Settings className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold text-blue-700">Bulk Configuration</h2>
+            </div>
             <p className="text-sm text-muted-foreground mb-4">
               Set Site ID and map each BACnet device (DDC) to equipment. This applies to all points from each device.
             </p>
@@ -614,8 +631,11 @@ export default function PointsPage() {
           </div>
 
           {/* Filters Card */}
-          <div className="card bg-card p-6 rounded-lg">
-            <h2 className="text-lg font-semibold mb-4">Filters</h2>
+          <div className="card bg-card p-6 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-4">
+              <FilterIcon className="w-5 h-5 text-purple-500" />
+              <h2 className="text-lg font-semibold">Filters</h2>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Device Filter */}
@@ -668,7 +688,10 @@ export default function PointsPage() {
 
               {/* Search */}
               <div>
-                <label className="block text-sm font-medium mb-2">Search</label>
+                <label className="flex items-center gap-2 text-sm font-medium mb-2">
+                  <Search className="w-4 h-4 text-purple-500" />
+                  Search
+                </label>
                 <input
                   type="text"
                   value={searchQuery}
@@ -697,27 +720,33 @@ export default function PointsPage() {
 
           {/* Bulk Operations */}
           {selectedPoints.size > 0 && (
-            <div className="card bg-blue-50 border-blue-200 p-4 rounded-lg flex items-center justify-between">
-              <div className="text-sm font-medium">
-                {selectedPoints.size} point{selectedPoints.size > 1 ? "s" : ""} selected
+            <div className="card bg-blue-50 border-2 border-blue-200 border-l-4 border-l-blue-500 p-4 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-blue-600" />
+                <div className="text-sm font-medium text-blue-800">
+                  {selectedPoints.size} point{selectedPoints.size > 1 ? "s" : ""} selected
+                </div>
               </div>
               <div className="flex gap-3">
                 <button
                   onClick={bulkEnableMqtt}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90"
                 >
+                  <CheckSquare className="w-4 h-4" />
                   Enable MQTT
                 </button>
                 <button
                   onClick={bulkDisableMqtt}
-                  className="px-4 py-2 bg-muted text-muted-foreground rounded-md font-medium hover:opacity-90 border-2 border-border"
+                  className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-md font-medium hover:opacity-90 border-2 border-border"
                 >
+                  <X className="w-4 h-4" />
                   Disable MQTT
                 </button>
                 <button
                   onClick={() => setSelectedPoints(new Set())}
-                  className="px-4 py-2 bg-background border border-input rounded-md font-medium hover:bg-muted"
+                  className="flex items-center gap-2 px-4 py-2 bg-background border border-input rounded-md font-medium hover:bg-muted"
                 >
+                  <X className="w-4 h-4" />
                   Clear Selection
                 </button>
               </div>
@@ -826,8 +855,9 @@ export default function PointsPage() {
                         <td className="px-3 py-3">
                           <button
                             onClick={() => handleEditPoint(point)}
-                            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90"
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90"
                           >
+                            <Edit className="w-3 h-3" />
                             Edit
                           </button>
                         </td>

@@ -25,8 +25,8 @@ export default function Navigation() {
               <Database className="w-6 h-6 text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-white">BacPipes</span>
-              <span className="text-xs text-slate-400">BACnet → MQTT Pipeline</span>
+              <span className="text-xl font-bold text-white">Control System</span>
+              <span className="text-xs text-slate-400">Building Automation</span>
             </div>
           </div>
 
