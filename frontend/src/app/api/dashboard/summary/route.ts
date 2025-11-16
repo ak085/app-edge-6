@@ -83,6 +83,7 @@ export async function GET() {
       select: {
         id: true,
         pointName: true,
+        dis: true,
         objectType: true,
         objectInstance: true,
         lastValue: true,
@@ -165,6 +166,7 @@ export async function GET() {
         },
         recentPoints: recentPoints.map(p => ({
           name: p.pointName,
+          dis: p.dis,
           device: p.device.deviceName,
           value: p.lastValue,
           units: p.units,

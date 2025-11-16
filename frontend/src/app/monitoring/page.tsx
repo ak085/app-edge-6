@@ -29,6 +29,7 @@ interface Point {
   units: string | null;
   isWritable: boolean;
   mqttTopic: string;
+  dis: string | null;
   device: {
     deviceName: string;
     ipAddress: string;
@@ -443,6 +444,7 @@ export default function MonitoringPage() {
             <thead className="bg-muted sticky top-0">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">Time</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Topic</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Payload</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Actions</th>
@@ -451,7 +453,7 @@ export default function MonitoringPage() {
             <tbody>
               {filteredMessages.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     {paused
                       ? '⏸️ Streaming paused'
                       : connectionStatus.connected
@@ -471,13 +473,25 @@ export default function MonitoringPage() {
                       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                         {getTimeAgo(msg.timestamp)}
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono">
-                        {msg.topic}
-                        {point && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {point.pointName} ({point.device.deviceName})
+                      <td className="px-4 py-3 text-sm">
+                        {point ? (
+                          <div>
+                            <div className="font-semibold text-slate-900">
+                              {point.dis || point.pointName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-mono">{point.objectType.replace('analog-', 'A').replace('binary-', 'B').replace('-input', 'I').replace('-output', 'O').replace('-value', 'V').toUpperCase()}:{point.objectInstance}</span>
+                              <span className="ml-1">• {point.pointName.split('_')[0]}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-muted-foreground italic text-xs">
+                            Point not found
                           </div>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-xs text-muted-foreground">
+                        {msg.topic}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <pre className="text-xs overflow-x-auto">

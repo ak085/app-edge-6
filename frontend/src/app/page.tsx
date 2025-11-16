@@ -50,6 +50,7 @@ interface DashboardData {
   }
   recentPoints: Array<{
     name: string
+    dis: string | null
     device: string
     value: string | null
     units: string | null
@@ -410,7 +411,15 @@ export default function DashboardPage() {
                   data.recentPoints.map((point, idx) => (
                     <tr key={idx} className="border-b border-border hover:bg-muted/50">
                       <td className="py-2 px-3 text-sm">{point.device}</td>
-                      <td className="py-2 px-3 text-sm font-medium">{point.name}</td>
+                      <td className="py-2 px-3">
+                        <div className="text-sm font-semibold text-slate-900">
+                          {point.dis || point.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-mono">{point.objectType.replace('analog-', 'A').replace('binary-', 'B').replace('-input', 'I').replace('-output', 'O').replace('-value', 'V').toUpperCase()}:{point.objectInstance}</span>
+                          <span className="ml-1">• {point.name.split('_')[0]}</span>
+                        </div>
+                      </td>
                       <td className="py-2 px-3 text-xs font-mono text-muted-foreground">
                         {point.objectType}:{point.objectInstance}
                       </td>

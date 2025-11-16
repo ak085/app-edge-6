@@ -9,7 +9,9 @@ interface Settings {
   mqttBroker: string;
   mqttPort: number;
   enableBatchPublishing: boolean;
+  allowRemoteControl: boolean;
   timezone: string;
+  defaultPollInterval: number;
 }
 
 export default function SettingsPage() {
@@ -19,11 +21,17 @@ export default function SettingsPage() {
     mqttBroker: "",
     mqttPort: 1883,
     enableBatchPublishing: false,
+    allowRemoteControl: false,
     timezone: "Asia/Kuala_Lumpur",
+    defaultPollInterval: 60,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Bulk poll interval state
+  const [bulkPollInterval, setBulkPollInterval] = useState(60);
+  const [applyingBulkInterval, setApplyingBulkInterval] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -47,14 +55,18 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (data.success && data.settings) {
-        setSettings({
+        const loadedSettings = {
           bacnetIp: data.settings.bacnetIp || "",
           bacnetPort: data.settings.bacnetPort || 47808,
           mqttBroker: data.settings.mqttBroker || "",
           mqttPort: data.settings.mqttPort || 1883,
           enableBatchPublishing: data.settings.enableBatchPublishing || false,
+          allowRemoteControl: data.settings.allowRemoteControl || false,
           timezone: data.settings.timezone || "Asia/Kuala_Lumpur",
-        });
+          defaultPollInterval: data.settings.defaultPollInterval || 60,
+        };
+        setSettings(loadedSettings);
+        setBulkPollInterval(loadedSettings.defaultPollInterval);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -85,6 +97,51 @@ export default function SettingsPage() {
       setToast({ message: "Failed to save settings", type: "error" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function applyBulkPollInterval() {
+    try {
+      setApplyingBulkInterval(true);
+
+      // First, save the default poll interval to settings
+      const settingsResponse = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...settings,
+          defaultPollInterval: bulkPollInterval,
+        }),
+      });
+
+      if (!settingsResponse.ok) {
+        throw new Error("Failed to save default poll interval");
+      }
+
+      // Then, apply the interval to all MQTT-enabled points
+      const response = await fetch("/api/points/bulk-poll-interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pollInterval: bulkPollInterval }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local settings state to reflect saved value
+        setSettings({ ...settings, defaultPollInterval: bulkPollInterval });
+        setToast({
+          message: `${data.message} Default poll interval saved. Worker will apply changes on next refresh.`,
+          type: "success"
+        });
+      } else {
+        setToast({ message: data.error || "Failed to update poll intervals", type: "error" });
+      }
+    } catch (error) {
+      console.error("Failed to apply bulk poll interval:", error);
+      setToast({ message: "Failed to apply bulk poll interval", type: "error" });
+    } finally {
+      setApplyingBulkInterval(false);
     }
   }
 
@@ -239,6 +296,42 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Remote Control Toggle */}
+            <div className="mt-6 pt-6 border-t border-border">
+              <h3 className="text-lg font-semibold mb-3">Remote Control</h3>
+
+              <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border-2 border-orange-200">
+                <input
+                  type="checkbox"
+                  id="allowRemoteControl"
+                  checked={settings.allowRemoteControl}
+                  onChange={(e) => setSettings({ ...settings, allowRemoteControl: e.target.checked })}
+                  className="mt-1 h-4 w-4 rounded border-gray-300"
+                />
+                <div className="flex-1">
+                  <label htmlFor="allowRemoteControl" className="block font-medium cursor-pointer">
+                    Allow Remote Platform Control
+                  </label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    When enabled, remote platform can send write commands to this site via MQTT.
+                    All write commands with <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">source: 'remote'</code> will be executed.
+                  </p>
+                  <div className="mt-2 text-sm">
+                    <p className="font-medium text-orange-600">⚠️ Security Notice</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Only enable this if you have a trusted remote platform. When enabled, remote write commands will execute on this site's BACnet devices.
+                      Disable this setting to reject all remote write commands (local writes will continue to work).
+                    </p>
+                  </div>
+                  {settings.allowRemoteControl && (
+                    <div className="mt-2 p-2 bg-orange-100 border border-orange-300 rounded text-xs text-orange-900">
+                      <strong>🔓 Remote Control ENABLED</strong> - Remote platform can control this site
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* System Configuration */}
@@ -341,6 +434,64 @@ export default function SettingsPage() {
                 <strong>💡 Important:</strong> All MQTT timestamps will use this timezone.
                 For multi-site deployments across different regions, consider using UTC to avoid confusion.
                 Worker restart is required for changes to take effect.
+              </p>
+            </div>
+          </div>
+
+          {/* Point Publishing Settings */}
+          <div className="card bg-card p-6 rounded-lg border-2 border-border">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span className="text-2xl">⏱️</span>
+              Point Publishing Settings
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure default polling interval for all MQTT-enabled points
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              {/* Poll Interval Input */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Default Poll Interval (seconds) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="3600"
+                  value={bulkPollInterval}
+                  onChange={(e) => {
+                    const newValue = parseInt(e.target.value) || 60;
+                    setBulkPollInterval(newValue);
+                    setSettings({ ...settings, defaultPollInterval: newValue });
+                  }}
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  How often to poll each point (1-3600 seconds)
+                </p>
+              </div>
+
+              {/* Apply Button */}
+              <div>
+                <button
+                  onClick={applyBulkPollInterval}
+                  disabled={applyingBulkInterval || bulkPollInterval < 1 || bulkPollInterval > 3600}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                >
+                  {applyingBulkInterval ? "Applying..." : "Apply to All MQTT Points"}
+                </button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Updates all points currently enabled for MQTT publishing
+                </p>
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm text-orange-900">
+                <strong>⚠️ Note:</strong> This will update the poll interval for ALL points that have MQTT publishing enabled.
+                Individual point intervals can still be changed on the Points page.
+                The BACnet worker will pick up changes on its next configuration refresh (typically within 60 seconds).
               </p>
             </div>
           </div>

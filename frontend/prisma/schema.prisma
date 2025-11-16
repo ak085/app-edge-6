@@ -119,6 +119,9 @@ model MqttConfig {
   // Publishing Options
   enableBatchPublishing Boolean @default(false)  // Publish equipment-level batch topics (for ML/AI)
 
+  // Remote Control
+  allowRemoteControl Boolean @default(false) @map("allow_remote_control")  // Allow remote platform to control this site
+
   // Status
   enabled           Boolean   @default(true)
 

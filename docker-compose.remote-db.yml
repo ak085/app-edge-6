@@ -1,0 +1,86 @@
+version: '3.8'
+
+# BacPipes Remote Database - Central Multi-Site Aggregation
+# Deploy this on remote/central server to collect data from multiple BacPipes sites
+
+services:
+  # Central TimescaleDB - Stores data from all sites
+  remote-timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: bacpipes-remote-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: anatoli
+      POSTGRES_PASSWORD: ""  # No password for local testing
+      POSTGRES_DB: bacnet_central
+      POSTGRES_HOST_AUTH_METHOD: trust  # Trust authentication for local testing
+    ports:
+      - "5436:5432"  # Different port to avoid conflicts
+    volumes:
+      - remote-timescaledb-data:/var/lib/postgresql/data
+      - ./remote-db/timescaledb/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anatoli -d bacnet_central"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - remote-db-network
+
+  # Central Grafana - Visualize data from all sites
+  remote-grafana:
+    image: grafana/grafana:10.4.1
+    container_name: bacpipes-remote-grafana
+    restart: unless-stopped
+    ports:
+      - "3003:3000"  # Different port (3003 for central Grafana)
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${REMOTE_GRAFANA_PASSWORD:-changeme}
+      - GF_INSTALL_PLUGINS=
+      - GF_SERVER_ROOT_URL=http://localhost:3003
+    volumes:
+      - remote-grafana-data:/var/lib/grafana
+      - ./remote-db/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      remote-timescaledb:
+        condition: service_healthy
+    networks:
+      - remote-db-network
+
+  # Remote API - Accept data from site clients
+  remote-api:
+    build:
+      context: ./remote-db/api
+      dockerfile: Dockerfile
+    container_name: bacpipes-remote-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # API endpoint for site clients
+    environment:
+      - DB_HOST=remote-timescaledb
+      - DB_PORT=5432
+      - DB_NAME=bacnet_central
+      - DB_USER=anatoli
+      - DB_PASSWORD=  # No password for local testing
+      - API_KEY=${REMOTE_API_KEY:-your-secret-api-key}  # For authentication
+    depends_on:
+      remote-timescaledb:
+        condition: service_healthy
+    networks:
+      - remote-db-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  remote-timescaledb-data:
+    driver: local
+  remote-grafana-data:
+    driver: local
+
+networks:
+  remote-db-network:
+    driver: bridge

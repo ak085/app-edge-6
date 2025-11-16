@@ -1,12 +1,9 @@
-# Grafana Datasource Configuration
-# TimescaleDB connection for BacPipes sensor data
-
 apiVersion: 1
 
 datasources:
-  - name: TimescaleDB
-    uid: timescaledb
+  - name: Local TimescaleDB
     type: postgres
+    uid: local-timescaledb
     access: proxy
     url: timescaledb:5432
     database: timescaledb
@@ -14,8 +11,8 @@ datasources:
     secureJsonData:
       password: ''
     jsonData:
-      sslmode: 'disable'
+      sslmode: disable
       postgresVersion: 1500
       timescaledb: true
-    isDefault: true
     editable: true
+    isDefault: true

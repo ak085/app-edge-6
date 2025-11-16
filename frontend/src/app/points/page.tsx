@@ -797,10 +797,12 @@ export default function PointsPage() {
                           />
                         </td>
                         <td className="px-3 py-3">
-                          <div className="text-sm font-medium">{point.pointName}</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {point.dis || point.pointName}
+                          </div>
                           <div className="text-xs text-muted-foreground">
-                            {point.device.deviceName}
-                            {point.description && ` • ${point.description}`}
+                            <span className="font-mono">{point.objectType.replace('analog-', 'A').replace('binary-', 'B').replace('-input', 'I').replace('-output', 'O').replace('-value', 'V').toUpperCase()}:{point.objectInstance}</span>
+                            <span className="ml-1">• {point.pointName.split('_')[0]}</span>
                           </div>
                         </td>
                         <td className="px-3 py-3 text-sm font-mono">

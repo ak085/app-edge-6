@@ -257,12 +257,60 @@ class MqttPublisher:
         priority = command.get('priority', 8)
         release = command.get('release', False)
         point_name = command.get('pointName', 'Unknown')
+        source = command.get('source', 'edge')  # Default to 'edge' if not specified
 
-        logger.info(f"📝 Executing write command {job_id}")
+        logger.info(f"📝 Executing write command {job_id} (source: {source})")
         logger.info(f"  Device: {device_id} ({device_ip})")
         logger.info(f"  Point: {point_name} ({object_type}-{object_instance})")
         logger.info(f"  Action: {'Release priority' if release else 'Write value'} {'' if release else value}")
         logger.info(f"  Priority: {priority}")
+
+        # Check remote control permission
+        if source == 'remote':
+            try:
+                cursor = self.db_conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute('SELECT allow_remote_control FROM "MqttConfig" WHERE id = 1')
+                config = cursor.fetchone()
+                cursor.close()
+
+                if not config or not config.get('allow_remote_control', False):
+                    error_msg = "Remote control is disabled. Enable 'Allow Remote Platform Control' in Settings to allow remote writes."
+                    logger.warning(f"⛔ Rejected remote write command {job_id}: {error_msg}")
+
+                    # Publish rejection result
+                    result = {
+                        "jobId": job_id,
+                        "success": False,
+                        "timestamp": datetime.now(self.timezone).isoformat(),
+                        "error": error_msg,
+                        "deviceId": device_id,
+                        "pointName": point_name,
+                        "value": value,
+                        "priority": priority,
+                        "release": release,
+                        "rejected": True,
+                        "reason": "remote_control_disabled"
+                    }
+                    self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+                    return
+                else:
+                    logger.info(f"✅ Remote control is enabled, proceeding with write command {job_id}")
+            except Exception as e:
+                logger.error(f"❌ Error checking remote control permission: {e}")
+                # If there's an error checking, reject the remote write for security
+                error_msg = f"Failed to verify remote control permission: {str(e)}"
+                result = {
+                    "jobId": job_id,
+                    "success": False,
+                    "timestamp": datetime.now(self.timezone).isoformat(),
+                    "error": error_msg,
+                    "deviceId": device_id,
+                    "pointName": point_name,
+                    "rejected": True,
+                    "reason": "permission_check_failed"
+                }
+                self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+                return
 
         try:
             # Execute BACnet write

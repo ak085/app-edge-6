@@ -142,6 +142,41 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
   const [isWritable, setIsWritable] = useState(point.isWritable);
 
   const [saving, setSaving] = useState(false);
+  const [defaultPollInterval, setDefaultPollInterval] = useState<number | null>(null);
+
+  // Fetch default poll interval from Settings when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    async function fetchDefaultPollInterval() {
+      try {
+        const response = await fetch("/api/settings");
+        if (response.ok) {
+          const data = await response.json();
+          const defaultInterval = data.settings.defaultPollInterval;
+          setDefaultPollInterval(defaultInterval);
+
+          // If point is NOT currently published, use the current default poll interval
+          if (!point.mqttPublish) {
+            setPollInterval(defaultInterval.toString());
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch default poll interval:", error);
+      }
+    }
+    fetchDefaultPollInterval();
+  }, [isOpen, point.mqttPublish]);
+
+  // When enabling MQTT publishing (false → true), update pollInterval to default
+  const handleMqttPublishToggle = (enabled: boolean) => {
+    setMqttPublish(enabled);
+
+    // If enabling publishing and we have a default poll interval, use it
+    if (enabled && !point.mqttPublish && defaultPollInterval !== null) {
+      setPollInterval(defaultPollInterval.toString());
+    }
+  };
 
   // Calculate MQTT topic preview
   const mqttTopicPreview = previewMqttTopic({
@@ -513,7 +548,7 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
                   type="checkbox"
                   id="mqttPublish"
                   checked={mqttPublish}
-                  onChange={(e) => setMqttPublish(e.target.checked)}
+                  onChange={(e) => handleMqttPublishToggle(e.target.checked)}
                   className="rounded"
                 />
                 <label htmlFor="mqttPublish" className="text-sm font-medium">
