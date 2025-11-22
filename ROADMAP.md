@@ -42,7 +42,7 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│ LXC: bacpipes-discovery (10.0.60.30)       │
+│ LXC: bacpipes-discovery (192.168.1.35)     │
 ├─────────────────────────────────────────────┤
 │  Frontend (Next.js) - Port 3001             │
 │  PostgreSQL - Port 5434                     │
@@ -56,6 +56,22 @@
 │ LXC: mqtt-broker (10.0.60.3)                │
 ├─────────────────────────────────────────────┤
 │  Mosquitto MQTT Broker - Port 1883          │
+│  MQTT Bridge → Remote (10.0.80.3)           │
+└─────────────────────────────────────────────┘
+                  ↓ MQTT bridge
+┌─────────────────────────────────────────────┐
+│ LXC: remote-mqtt-broker (10.0.80.3)         │
+├─────────────────────────────────────────────┤
+│  Mosquitto MQTT Broker - Port 1883          │
+│  (Aggregates data from all sites)           │
+└─────────────────────────────────────────────┘
+                  ↓ MQTT subscribe
+┌─────────────────────────────────────────────┐
+│ LXC/Docker: bacpipes-remote (10.0.80.2)     │
+├─────────────────────────────────────────────┤
+│  Remote Monitoring Dashboard                │
+│  TimescaleDB (Aggregated Data)              │
+│  Telegraf (MQTT → TimescaleDB)              │
 └─────────────────────────────────────────────┘
 ```
 
@@ -111,22 +127,22 @@
 **Architecture**:
 ```
 ┌─────────────────────────────────────┐
-│ Site 1 (KLCC)                       │
-│  - bacpipes-discovery (10.0.60.30)  │
+│ Site 1 (Current Site)               │
+│  - bacpipes-discovery (192.168.1.35)│
 │  - Local MQTT (10.0.60.3)           │
 └─────────────────────────────────────┘
-              ↓ Bridge
+              ↓ MQTT Bridge
 ┌─────────────────────────────────────┐
-│ Remote HQ (Cloud/VPS)               │
-│  - Central MQTT Broker              │
+│ Remote HQ (10.0.80.x)               │
+│  - Remote MQTT Broker (10.0.80.3)   │
 │  - Aggregated TimescaleDB           │
-│  - Multi-site Dashboard             │
+│  - Multi-site Dashboard (10.0.80.2) │
 └─────────────────────────────────────┘
-              ↑ Bridge
+              ↑ MQTT Bridge (Future)
 ┌─────────────────────────────────────┐
-│ Site 2 (Menara)                     │
-│  - bacpipes-discovery (10.0.70.30)  │
-│  - Local MQTT (10.0.70.3)           │
+│ Site 2 (Future)                     │
+│  - bacpipes-discovery (TBD)         │
+│  - Local MQTT (TBD)                 │
 └─────────────────────────────────────┘
 ```
 
