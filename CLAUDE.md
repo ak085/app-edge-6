@@ -25,9 +25,9 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│ LXC: bacpipes-discovery (10.0.60.30)       │
+│ LXC: bacpipes-discovery (192.168.1.35)     │
+│ Docker Compose Stack                        │
 ├─────────────────────────────────────────────┤
-│                                             │
 │  Frontend (Next.js) - Port 3001             │
 │  ├─ Discovery                               │
 │  ├─ Points (Haystack tagging)               │
@@ -37,7 +37,7 @@
 │  └─ Devices, Points, MqttConfig             │
 │                                             │
 │  BACnet Worker (Python/BAC0)                │
-│  ├─ Polls BACnet devices                    │
+│  ├─ Polls BACnet devices (192.168.1.0/24)  │
 │  ├─ Publishes to MQTT (10.0.60.3)           │
 │  └─ Handles write commands                  │
 │                                             │
@@ -56,8 +56,26 @@
 │ LXC: mqtt-broker (10.0.60.3)                │
 ├─────────────────────────────────────────────┤
 │  Mosquitto MQTT Broker                      │
-│  ├─ Port 1883 (local network)               │
-│  └─ Infrastructure-level service            │
+│  Port: 1883 (local network)                 │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  ⚙️  MQTT BRIDGE CONFIGURED HERE            │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+└─────────────────┬───────────────────────────┘
+                  │ Bridge forwards
+                  ↓
+┌─────────────────────────────────────────────┐
+│ LXC: remote-mqtt-broker (10.0.80.3)         │
+├─────────────────────────────────────────────┤
+│  Mosquitto MQTT Broker                      │
+│  Port: 1883 (simulates remote HQ)           │
+│  Aggregates data from all sites             │
+└─────────────────┬───────────────────────────┘
+                  │ MQTT subscribe
+                  ↓
+┌─────────────────────────────────────────────┐
+│ Remote Monitoring Dashboard                 │
+│ IP: 10.0.80.2                               │
+│ Consumes aggregated multi-site data         │
 └─────────────────────────────────────────────┘
 ```
 

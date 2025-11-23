@@ -1,8 +1,7 @@
-# BacPipes - BACnet-to-MQTT Data Pipeline
+# BacPipes - BACnet Discovery & MQTT Publishing Platform
 
-**Production-ready BMS data collection platform for multi-site building automation**
+**Production-ready BACnet-to-MQTT bridge with web-based configuration and remote monitoring**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](docker-compose.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?logo=postgresql)](https://www.postgresql.org/)
@@ -12,28 +11,29 @@
 
 ## Overview
 
-BacPipes is a distributed BACnet-to-MQTT data pipeline designed for enterprise building management systems (BMS). It enables:
+BacPipes is a distributed BACnet-to-MQTT data pipeline designed for enterprise building management systems (BMS). It enables real-time monitoring, data collection, and remote control of BACnet devices with MQTT bridge support for multi-site deployments.
 
-- 🏢 **Multi-site data collection** from 100s-1000s of buildings
-- 📊 **Real-time monitoring** with custom dashboard (TimescaleDB + Next.js)
-- 🤖 **ML-powered optimization** (edge inference, centralized training)
-- 🔒 **Secure, encrypted replication** between sites and central servers
-- 📡 **Resilient architecture** (works offline, auto-recovery)
-- 🐳 **Docker Compose deployment** (single command setup)
+### Key Features
+
+- 🔍 **BACnet Discovery** - Automatic network scanning and device detection
+- 🏷️ **Haystack Tagging** - Industry-standard semantic naming (8-field structure)
+- 📡 **MQTT Publishing** - Real-time data streaming to local and remote brokers
+- 🌉 **MQTT Bridge** - Automatic data replication from local to remote sites
+- 📊 **Monitoring Dashboard** - Real-time visualization on port 3003
+- ✏️ **BACnet Write** - Web-based control with priority array support
+- ⏱️ **TimescaleDB** - Time-series data storage and historical analytics
+- 🐳 **Docker Compose** - Single-command deployment
 
 ### Current Status
 
-- ✅ **M1: Foundation** - Docker Compose, PostgreSQL, Prisma ORM
-- ✅ **M2: BACnet Discovery** - Web UI for network scanning, device/point discovery
-- ✅ **M3: Point Configuration** - Haystack tagging, MQTT topic generation
-- ✅ **M4: MQTT Publishing** - Real-time data publishing with per-point intervals
-- ✅ **M5: Monitoring Dashboard** - Real-time MQTT data streaming, live point values
-- ✅ **M6: BACnet Write Commands** - Web UI for writing setpoints with priority control
-- ✅ **M7: Time-Series Storage** - TimescaleDB integration (complete)
-- ✅ **M8: Monitoring Dashboard** - Real-time visualization on port 3003 (complete)
-- ⏳ **M9: Central Replication** - Site-to-remote data sync (in progress)
-
-See [ROADMAP.md](ROADMAP.md) for full development roadmap.
+- ✅ **Foundation** - Docker Compose, PostgreSQL, Prisma ORM
+- ✅ **BACnet Discovery** - Web UI for network scanning
+- ✅ **Point Configuration** - Haystack tagging, MQTT topic generation
+- ✅ **MQTT Publishing** - Per-point intervals, external broker architecture
+- ✅ **Monitoring Dashboard** - Real-time data visualization (port 3003)
+- ✅ **BACnet Write Commands** - Priority array control
+- ✅ **Time-Series Storage** - TimescaleDB with Telegraf ingestion
+- ✅ **MQTT Bridge** - Local-to-remote broker forwarding (configured and working)
 
 ---
 
@@ -43,14 +43,14 @@ See [ROADMAP.md](ROADMAP.md) for full development roadmap.
 
 - Docker & Docker Compose
 - 4GB RAM minimum (8GB recommended)
-- Linux (Ubuntu/Debian) or macOS
+- Linux (Ubuntu/Debian recommended)
 - Network access to BACnet devices
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone https://gitea.yourserver.com/user/bacpipes.git
+git clone http://10.0.10.2:30008/ak101/dev-bacnet-discovery-docker.git
 cd BacPipes
 
 # Copy environment template
@@ -59,280 +59,174 @@ cp .env.example .env
 # Edit .env with your settings
 nano .env
 
-# Start all services
+# Start core services
 docker compose up -d
+
+# Start monitoring stack (TimescaleDB + Dashboard)
+docker compose -f docker-compose-monitoring.yml up -d
 
 # View logs
 docker compose logs -f bacnet-worker
 
-# Open web UI
-open http://localhost:3001
+# Access web UI
+open http://192.168.1.35:3001
+
+# Access monitoring dashboard
+open http://192.168.1.35:3003
 ```
 
 ### First-Time Setup
 
 1. **Configure Network Settings**
-   - Navigate to http://localhost:3001/settings
-   - Enter your local BACnet IP address
-   - Configure MQTT broker (default: 10.0.60.2:1883)
-   - Set timezone for your site
+   - Navigate to http://192.168.1.35:3001/settings
+   - Enter your local BACnet IP address (default: 192.168.1.35)
+   - Configure MQTT broker (default: 10.0.60.3:1883)
+   - Set timezone for your site (default: Asia/Kuala_Lumpur)
 
 2. **Discover BACnet Devices**
-   - Go to http://localhost:3001/discovery
+   - Go to http://192.168.1.35:3001/discovery
    - Click "Start Discovery"
-   - Wait for scan to complete (~30 seconds)
+   - Wait for scan to complete (~15-30 seconds)
    - Review discovered devices and points
 
-3. **Tag Points with Haystack**
-   - Go to http://localhost:3001/points
+3. **Configure Points with Haystack Tags**
+   - Go to http://192.168.1.35:3001/points
    - Select points to configure
-   - Add site ID, equipment type, equipment ID
+   - Add Haystack tags: site, equipment type, equipment ID, point function
    - MQTT topics auto-generate from tags
-   - Enable "Publish to MQTT"
+   - Enable "Publish to MQTT" checkbox
 
 4. **Verify Data Flow**
-   - Subscribe to MQTT broker: `mosquitto_sub -h 10.0.60.2 -t "#" -v`
-   - Check logs: `docker compose logs -f bacnet-worker`
-   - Monitor dashboard: http://localhost:3001
+   ```bash
+   # Subscribe to local MQTT broker
+   mosquitto_sub -h 10.0.60.3 -t "bacnet/#" -v
 
-### MQTT Bridge Setup (Optional - for Remote Monitoring)
+   # Check worker logs
+   docker compose logs -f bacnet-worker
 
-To forward data to a remote/cloud MQTT broker for centralized monitoring:
-
-**Prerequisites:**
-- Mosquitto 2.0.22+ installed on broker 10.0.60.2
-- Remote broker running at 10.0.60.3
-
-**Step 1: Configure Main Mosquitto Config**
-
-SSH to local broker and edit `/etc/mosquitto/mosquitto.conf`:
-```bash
-ssh user@10.0.60.2
-sudo nano /etc/mosquitto/mosquitto.conf
-```
-
-**Required configuration** (NO leading spaces!):
-```conf
-# Mosquitto 2.0.22 Configuration
-# Allow remote connections
-
-# Listen on all interfaces, port 1883
-listener 1883 0.0.0.0
-allow_anonymous true
-
-# Persistence
-persistence true
-persistence_location /var/lib/mosquitto/
-
-# Logging
-log_dest file /var/log/mosquitto/mosquitto.log
-log_type all
-
-# Include bridge configuration
-include /etc/mosquitto/bridge.conf
-```
-
-**Important**: Ensure NO leading spaces in config file! Use `cat -A /etc/mosquitto/mosquitto.conf` to verify.
-
-**Step 2: Deploy Bridge Configuration**
-
-```bash
-# Copy bridge config from BacPipes repo
-scp docs/mqtt-bridge-config.conf user@10.0.60.2:/tmp/bridge.conf
-
-# SSH to broker and install
-ssh user@10.0.60.2
-sudo cp /tmp/bridge.conf /etc/mosquitto/bridge.conf
-sudo chown mosquitto:mosquitto /etc/mosquitto/bridge.conf
-sudo chmod 644 /etc/mosquitto/bridge.conf
-```
-
-**Step 3: Test and Restart**
-
-```bash
-# Test configuration syntax
-sudo mosquitto -c /etc/mosquitto/mosquitto.conf -v
-# (Press Ctrl+C if no errors)
-
-# Restart Mosquitto service
-sudo systemctl restart mosquitto
-sudo systemctl status mosquitto
-# Should show "active (running)"
-
-# Verify listening on correct port
-sudo ss -tulpn | grep 1883
-# Should show: tcp LISTEN 0.0.0.0:1883
-
-# Verify bridge connection
-sudo journalctl -u mosquitto -f | grep bridge
-# Look for: "Connecting bridge bridge-to-remote (10.0.60.3:1883)"
-```
-
-**Step 4: Verify Bridge Operation**
-
-```bash
-# On local broker, publish test message
-mosquitto_pub -h 10.0.60.2 -t "klcc/test" -m "hello from local"
-
-# On remote broker (10.0.60.3), subscribe to forwarded topics
-mosquitto_sub -h 10.0.60.3 -t "klcc/#" -v
-# Should see: klcc/test hello from local
-
-# Check prefixed topics
-mosquitto_sub -h 10.0.60.3 -t "remote/#" -v
-# Should see: remote/klcc/test hello from local
-```
-
-**Step 5: Security** (Production)
-
-- Uncomment TLS section in `mqtt-bridge-config.conf`
-- Generate SSL certificates for both brokers
-- Update bridge to use port 8883
-- See bridge config file for complete TLS setup
-
-**Bridge Topics**:
-- `klcc/#` → Forwards all KLCC site data (QoS 1)
-- `menara/#` → Forwards all Menara site data (QoS 1)
-- `#` → Forwards all topics with `remote/` prefix (QoS 0)
-
-**Bridge Features**:
-- Auto-reconnect every 30 seconds on disconnect
-- Clean session: false (persists across restarts)
-- Keep-alive: 60 seconds
-- Client ID: `bridge_local_to_remote`
-
-See `docs/mqtt-bridge-config.conf` for complete configuration, troubleshooting guide, and TLS setup.
+   # Monitor dashboard
+   open http://192.168.1.35:3003
+   ```
 
 ---
 
 ## Architecture
 
-### Current System (Edge Collection)
+### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│            BacPipes (Edge System) - Docker Compose          │
-│                   http://localhost:3001                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────┐  ┌──────────────┐  ┌────────────────┐       │
-│  │PostgreSQL├─→│ Next.js UI   │  │ BacPipes Worker│       │
-│  │(Config)  │  │(Web GUI)     │  │(Python+BACpy3) │       │
-│  │Port 5434 │  │Port 3001     │  │(Host network)  │       │
-│  └──────────┘  └──────────────┘  └───────┬────────┘       │
-│                                           │                 │
-│  ┌──────────────┐  ┌──────────────┐      │                │
-│  │ TimescaleDB  │←─│  Telegraf    │      │                │
-│  │(Time-series) │  │(MQTT→DB)     │      │                │
-│  │Port 5435     │  │              │      │                │
-│  └──────┬───────┘  └──────┬───────┘      │                │
-│         │                  │              │                │
-│         ↓ Monitoring       │              │                │
-│  ┌──────────────┐          │              │                │
-│  │  Monitoring  │          │              │                │
-│  │  Dashboard   │          │              │                │
-│  │  Port 3003   │          │              │                │
-│  └──────────────┘          │              │                │
-│                            ↓              ↓                │
-│         BACnet Network ←───┘              └─→ MQTT         │
-│                                               Publish      │
-└───────────────────────────────────────────────┬────────────┘
-                                                │
-                                                ↓
-                                 ┌──────────────────────────┐
-                                 │  MQTT Broker (External)  │
-                                 │  LXC #2: 10.0.60.2:1883  │
-                                 │  (Shared Infrastructure) │
-                                 └──────────┬───────────────┘
-                                            │
-                       MQTT Bridge ─────────┤
-                       (Configured on       │
-                        broker 60.2)        │
-                                            ↓
-                                 ┌──────────────────────────┐
-                                 │  Remote MQTT Broker      │
-                                 │  LXC #3: 10.0.60.3:1883  │
-                                 │  (Cloud/Central)         │
-                                 └──────────┬───────────────┘
-                                            │
-                                            ↓
-                      ┌────────────────────────────────────────┐
-                      │  BacPipes-Remote (Cloud Monitoring)    │
-                      │  Separate Deployment                   │
-                      │  http://remote-host:3003               │
-                      │  See: BacPipes-Remote repository       │
-                      └────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│ LXC: bacpipes-discovery (192.168.1.35)     │
+│ Docker Compose Stack                        │
+├─────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────────┐            │
+│  │PostgreSQL├─→│ Next.js UI   │            │
+│  │(Config)  │  │(Web GUI)     │            │
+│  │Port 5434 │  │Port 3001     │            │
+│  └──────────┘  └──────────────┘            │
+│                                             │
+│  ┌────────────────┐                        │
+│  │ BACnet Worker  │                        │
+│  │ (Python+BAC0)  │                        │
+│  │ (Host network) │                        │
+│  └───────┬────────┘                        │
+│          │                                  │
+│  ┌───────┴────────┐                        │
+│  │  TimescaleDB   │                        │
+│  │  (Time-series) │                        │
+│  │  Port 5435     │                        │
+│  └───────┬────────┘                        │
+│          │                                  │
+│  ┌───────┴────────┐                        │
+│  │   Telegraf     │                        │
+│  │  (MQTT→DB)     │                        │
+│  └───────┬────────┘                        │
+│          │                                  │
+│  ┌───────┴────────┐                        │
+│  │   Monitoring   │                        │
+│  │   Dashboard    │                        │
+│  │   Port 3003    │                        │
+│  └────────────────┘                        │
+│                                             │
+│  BACnet Network ←──┐                       │
+│                    │                       │
+│  MQTT Publish ─────┼────→                  │
+└────────────────────┼───────────────────────┘
+                     │
+                     ↓
+┌─────────────────────────────────────────────┐
+│ LXC: mqtt-broker (10.0.60.3)                │
+├─────────────────────────────────────────────┤
+│  Mosquitto MQTT Broker                      │
+│  Port: 1883 (local network)                 │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  ⚙️  MQTT BRIDGE CONFIGURED HERE            │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+└─────────────────┬───────────────────────────┘
+                  │ Bridge forwards
+                  ↓
+┌─────────────────────────────────────────────┐
+│ LXC: remote-mqtt-broker (10.0.80.3)         │
+├─────────────────────────────────────────────┤
+│  Mosquitto MQTT Broker                      │
+│  Port: 1883 (simulates remote HQ)           │
+│  Aggregates data from all sites             │
+└─────────────────┬───────────────────────────┘
+                  │ MQTT subscribe
+                  ↓
+┌─────────────────────────────────────────────┐
+│ Remote Monitoring Dashboard                 │
+│ IP: 10.0.80.2                               │
+│ Consumes aggregated multi-site data         │
+└─────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
-1. **BACnet Discovery**: Worker discovers devices on 192.168.1.0/24
+1. **BACnet Discovery**: Worker discovers devices on 192.168.1.0/24 network
 2. **Point Configuration**: Web UI tags points with Haystack metadata
-3. **Polling**: Worker reads BACnet points at configured intervals
-4. **Local Storage**: Telegraf writes to TimescaleDB for monitoring dashboard
-5. **MQTT Publishing**: Worker publishes to external broker 10.0.60.2
-6. **Bridge Forward**: MQTT bridge forwards topics to remote broker 10.0.60.3
-7. **Cloud Monitoring**: BacPipes-Remote consumes data from remote broker
+3. **Polling**: Worker reads BACnet points at configured intervals (e.g., 60s)
+4. **Local Storage**: Telegraf writes data to TimescaleDB for local monitoring
+5. **MQTT Publishing**: Worker publishes to local broker (10.0.60.3:1883)
+6. **Bridge Forward**: MQTT bridge automatically forwards topics to remote broker (10.0.80.3:1883)
+7. **Remote Monitoring**: Remote dashboard consumes aggregated data from all sites
 
-### Future Enhancements
-- PostgreSQL logical replication for configuration sync
-- ML inference at edge
-- Advanced analytics and alerting
+### Key Characteristics
+
+- **Modular LXC Deployment**: Each component runs in separate container for high availability
+- **External MQTT Broker**: Shared infrastructure, survives BacPipes restarts
+- **Multi-Instance Support**: Single MQTT broker serves multiple BacPipes deployments
+- **Database-Driven**: PostgreSQL for configuration, TimescaleDB for time-series
+- **Web-Based**: No manual CSV editing, all configuration via GUI
 
 ---
 
-## Key Features
+## Technology Stack
 
-### 1. Web-Based Configuration
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Frontend** | Next.js 15 + TypeScript | Web UI for configuration and monitoring |
+| **Database** | PostgreSQL 15 + Prisma ORM | Device/point configuration storage |
+| **Time-Series** | TimescaleDB (PostgreSQL extension) | Historical data storage |
+| **Worker** | Python 3.10 + BAC0 | BACnet polling and MQTT publishing |
+| **Ingestion** | Telegraf | MQTT → TimescaleDB data pipeline |
+| **MQTT Broker** | Eclipse Mosquitto 2.x | Local message broker (external LXC) |
+| **MQTT Bridge** | Mosquitto Bridge | Local → Remote data replication |
+| **Deployment** | Docker Compose | Container orchestration |
 
-- **No manual CSV editing** - Configure everything through GUI
-- **Real-time discovery** - Automatic BACnet device scanning
-- **Haystack tagging** - Industry-standard semantic tags
-- **MQTT topic preview** - See generated topics before enabling
-- **Bulk operations** - Enable/disable multiple points at once
+---
 
-### 2. Flexible MQTT Publishing
+## Port Allocation
 
-**Individual Topics:**
-```
-macau-casino/ahu_301/analogInput1/presentValue
-{
-  "value": 22.5,
-  "timestamp": "2025-11-04T09:16:04+08:00",
-  "units": "degreesCelsius",
-  "quality": "good",
-  "dis": "Supply Air Temperature"
-}
-```
-
-**Batch Topics** (optional, for ML/AI):
-```
-macau-casino/ahu_301/batch
-{
-  "timestamp": "2025-11-04T09:16:04+08:00",
-  "equipment": "ahu_301",
-  "site": "macau-casino",
-  "points": [
-    {"name": "ai1", "value": 22.5, "units": "degreesCelsius"},
-    {"name": "ai2", "value": 24.0, "units": "degreesCelsius"},
-    {"name": "ao1", "value": 45.0, "units": "percent"}
-  ]
-}
-```
-
-### 3. Intelligent Polling
-
-- **Per-point intervals** - Each point can have different poll rates (15s, 30s, 60s)
-- **Minute-aligned polling** - Synchronized timestamps for ML/AI
-- **Automatic retries** - Exponential backoff on BACnet failures
-- **Resource efficient** - Only polls when interval elapsed
-
-### 4. Resilient by Design
-
-- **Offline operation** - Continues working during network outages
-- **Automatic reconnection** - MQTT and BACnet auto-recovery
-- **Graceful shutdown** - SIGTERM handling, clean disconnects
-- **Health checks** - Docker container health monitoring
+| Port | Service | Description |
+|------|---------|-------------|
+| **3001** | Frontend Web UI | Discovery, configuration, settings |
+| **3003** | Monitoring Dashboard | Real-time data visualization |
+| **5434** | PostgreSQL | Configuration database (host port) |
+| **5435** | TimescaleDB | Time-series database (host port) |
+| **47808** | BACnet Worker | BACnet/IP protocol (UDP) |
+| **1883** | MQTT Broker (10.0.60.3) | Local MQTT broker (external LXC) |
+| **1883** | MQTT Broker (10.0.80.3) | Remote MQTT broker (external LXC) |
 
 ---
 
@@ -346,28 +240,67 @@ Key settings in `.env`:
 # Database
 POSTGRES_USER=anatoli
 POSTGRES_DB=bacpipes
+DATABASE_URL="postgresql://anatoli@postgres:5432/bacpipes"
 
 # BACnet Network
 BACNET_IP=192.168.1.35
 BACNET_PORT=47808
+BACNET_DEVICE_ID=3001234
 
-# MQTT Broker
-MQTT_BROKER=10.0.60.2
+# MQTT Broker (external)
+MQTT_BROKER=10.0.60.3
 MQTT_PORT=1883
+
+# TimescaleDB
+TIMESCALEDB_URL="postgresql://anatoli@timescaledb:5432/timescaledb"
 
 # System
 TZ=Asia/Kuala_Lumpur
+NODE_ENV=production
 ```
 
 ### Web UI Settings
 
-Access http://localhost:3001/settings to configure:
+Access http://192.168.1.35:3001/settings to configure:
 
-- **BACnet Network**: IP address, port
-- **MQTT Broker**: Host, port, batch publishing toggle
+- **BACnet Network**: IP address, port, device ID
+- **MQTT Broker**: Host (10.0.60.3), port (1883), batch publishing toggle
 - **System**: Timezone (50+ timezones supported)
 
-All settings stored in database, no .env editing required!
+All settings stored in database - no `.env` editing required after initial setup!
+
+---
+
+## MQTT Bridge Setup
+
+The MQTT bridge is already **configured and working** between local (10.0.60.3) and remote (10.0.80.3) brokers.
+
+### Current Configuration
+
+- **Local Broker**: 10.0.60.3:1883 (LXC: mqtt-broker)
+- **Remote Broker**: 10.0.80.3:1883 (LXC: remote-mqtt-broker)
+- **Bridge Topics**: `bacnet/#` (all BACnet data forwarded with QoS 1)
+- **Write Commands**: `bacnet/write/#` (inbound from remote, QoS 1)
+
+### Verification
+
+```bash
+# Test local → remote forwarding
+# On local broker, publish test message
+mosquitto_pub -h 10.0.60.3 -t 'bacnet/test/message' -m 'Hello from local site'
+
+# On remote broker, subscribe to forwarded topics
+mosquitto_sub -h 10.0.80.3 -t 'bacnet/#' -v
+# Should see: bacnet/test/message Hello from local site
+```
+
+### Documentation
+
+See [MQTT_BRIDGE_SETUP.md](MQTT_BRIDGE_SETUP.md) for:
+- Complete bridge configuration guide
+- Troubleshooting common issues
+- Security hardening (TLS/SSL setup)
+- Multi-site deployment patterns
 
 ---
 
@@ -375,221 +308,108 @@ All settings stored in database, no .env editing required!
 
 ```
 BacPipes/
-├── frontend/                  # Next.js web application
+├── frontend/                   # Next.js web application
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.tsx              # Dashboard
-│   │   │   ├── discovery/page.tsx    # BACnet discovery
-│   │   │   ├── points/page.tsx       # Point configuration
-│   │   │   ├── settings/page.tsx     # System settings
-│   │   │   └── api/                  # REST API routes
-│   │   ├── components/               # React components
-│   │   └── lib/                      # Utilities, Prisma client
+│   │   │   ├── page.tsx               # Dashboard
+│   │   │   ├── discovery/page.tsx     # BACnet discovery
+│   │   │   ├── points/page.tsx        # Point configuration
+│   │   │   ├── settings/page.tsx      # System settings
+│   │   │   └── api/                   # REST API routes
+│   │   ├── components/                # React components
+│   │   └── lib/                       # Utilities, Prisma client
 │   ├── prisma/
-│   │   ├── schema.prisma             # Database schema
-│   │   └── migrations/               # Migration history
+│   │   ├── schema.prisma              # Database schema
+│   │   └── migrations/                # Migration history
 │   └── package.json
 │
-├── worker/                    # Python BACnet worker
-│   ├── mqtt_publisher.py             # Main worker (BACpypes3)
+├── worker/                     # Python BACnet worker
+│   ├── mqtt_publisher.py              # Main worker (BAC0)
+│   ├── bacnet_write_handler.py        # Write command handler
 │   ├── requirements.txt
 │   └── Dockerfile
 │
-├── scripts/                   # Legacy Python scripts (pre-Docker)
-│   └── *.py                          # Original CSV-based workflow
+├── monitoring-dashboard/       # Monitoring UI (port 3003)
+│   ├── src/app/
+│   │   ├── page.tsx                   # Main dashboard
+│   │   └── api/                       # TimescaleDB queries
+│   └── package.json
 │
-├── docker-compose.yml         # Service orchestration
-├── .env                       # Configuration (gitignored)
-├── CLAUDE.md                  # Project documentation
-├── STRATEGIC_PLAN.md          # Architecture roadmap
-└── README.md                  # This file
+├── telegraf/                   # MQTT → TimescaleDB ingestion
+│   ├── mqtt_to_timescaledb.py         # Custom Python bridge
+│   └── requirements.txt
+│
+├── timescaledb/
+│   └── init/
+│       └── 01_init.sql                # Hypertable setup
+│
+├── scripts/                    # Legacy Python scripts (archived)
+│   └── *.py                           # Original CSV-based workflow
+│
+├── doc/
+│   └── archive/
+│       └── MIGRATION_TO_MODULAR_ARCHITECTURE.md  # Historical docs
+│
+├── docker-compose.yml          # Core services
+├── docker-compose-monitoring.yml  # Monitoring stack
+├── .env                        # Configuration (gitignored)
+├── MQTT_BRIDGE_SETUP.md        # Bridge configuration guide
+├── ROADMAP.md                  # Development roadmap
+└── README.md                   # This file
 ```
 
 ---
 
-## User Guide
+## Common Operations
 
-### Monitoring Dashboard
-
-Access real-time MQTT data at http://localhost:3001/monitoring
-
-**Features:**
-- **Live Data Stream**: Auto-updating point values via Server-Sent Events (SSE)
-- **In-Place Updates**: Rows update without scrolling (one row per point)
-- **Natural Scrolling**: Use regular webpage scrolling, sticky headers
-- **Topic Filtering**: Search/filter by MQTT topic
-- **Pause/Resume**: Pause data stream while investigating
-- **Write Commands**: Click "Write" button on any point (see below)
-
-**Connection Status:**
-- 🟢 Green = Connected to MQTT broker
-- 🟡 Yellow = Connecting...
-- 🔴 Red = Disconnected
-
-### BACnet Write Commands
-
-Send write commands to BACnet devices from the monitoring page.
-
-**Steps:**
-1. Navigate to Monitoring page
-2. Find the point you want to write to
-3. Click the "✏️ Write" button
-4. Enter new value
-5. Select priority level (1-16, default: 8)
-6. Click "Send Write Command"
-
-**Priority Levels:**
-- **1-2**: Life safety (highest priority)
-- **8**: Manual operator override (recommended)
-- **16**: Scheduled/default (lowest priority)
-
-**Release Priority:**
-- Check "Release Priority" to remove manual override
-- Point reverts to next active priority or default value
-
-**Supported Object Types:**
-- All analog types (AI, AO, AV)
-- All binary types (BI, BO, BV)
-- Multi-state values (MSV, MSI, MSO)
-
-**Write Result Feedback:**
-- ✅ Success: "Write command sent: {value}"
-- ❌ Error: Displays error message
-
-### Timezone Configuration
-
-Configure timezone for MQTT timestamps in Settings page.
-
-**Steps:**
-1. Go to http://localhost:3001/settings
-2. Select timezone from dropdown (50+ timezones)
-3. Click "Save Settings"
-4. **Restart worker**: `docker compose restart bacnet-worker`
-5. Wait 30-60 seconds for fresh data
-
-**Available Timezones:**
-- `Asia/Kuala_Lumpur` → UTC+8
-- `Asia/Singapore` → UTC+8
-- `Asia/Bangkok` → UTC+7
-- `Asia/Dubai` → UTC+4
-- `Europe/Paris` → UTC+1
-- `America/New_York` → UTC-5
-- And 500+ more IANA timezones
-
-**MQTT Timestamps:**
-```json
-{
-  "value": 22.5,
-  "timestamp": "2025-11-07T08:41:03+08:00",  // Your configured timezone
-  "units": "degreesCelsius"
-}
-```
-
-**Important**: Worker must be restarted to apply timezone changes!
-
----
-
-## Service Management
-
-### Shutdown Commands
+### Service Management
 
 ```bash
+# Start all services
 cd /home/ak101/BacPipes
+docker compose up -d
+docker compose -f docker-compose-monitoring.yml up -d
 
 # Stop all services (graceful)
 docker compose stop
+docker compose -f docker-compose-monitoring.yml stop
 
 # Stop and remove containers (keeps database data)
 docker compose down
+docker compose -f docker-compose-monitoring.yml down
 
 # Complete cleanup (⚠️ DELETES DATABASE!)
 docker compose down -v
-```
+docker compose -f docker-compose-monitoring.yml down -v
 
-### Startup Commands
+# View logs
+docker compose logs -f bacnet-worker
+docker compose -f docker-compose-monitoring.yml logs -f telegraf
 
-```bash
-cd /home/ak101/BacPipes
-
-# Start all services
-docker compose up -d
-
-# Start with live logs
-docker compose up
+# Restart services
+docker compose restart bacnet-worker
+docker compose -f docker-compose-monitoring.yml restart
 
 # Force rebuild
-docker compose up -d --build
-```
-
-### Restart Commands
-
-```bash
-cd /home/ak101/BacPipes
-
-# Restart all services
-docker compose restart
-
-# Restart worker only (after timezone change)
-docker compose restart bacnet-worker
-
-# Restart frontend only (after code changes)
-docker compose restart frontend
-
-# Force recreate
-docker compose up -d --force-recreate
-```
-
-### Check Service Status
-
-```bash
-cd /home/ak101/BacPipes
-
-# View running services
-docker compose ps
-
-# Check worker health
-docker inspect bacpipes-worker --format='{{.State.Health.Status}}'
-
-# View resource usage
-docker stats
-```
-
----
-
-## Common Tasks
-
-### View Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f bacnet-worker
-docker compose logs -f frontend
-
-# Last 50 lines
-docker compose logs --tail=50 bacnet-worker
-```
-
-### Restart Services
-
-```bash
-# Restart all
-docker compose restart
-
-# Restart worker only
-docker compose restart bacnet-worker
-
-# Rebuild and restart
 docker compose up -d --build
 ```
 
 ### Database Operations
 
 ```bash
-# Access PostgreSQL
+# Access PostgreSQL (configuration)
 docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
+
+# Access TimescaleDB (time-series)
+docker exec -it bacpipes-timescaledb psql -U anatoli -d timescaledb
+
+# Query recent data
+docker exec bacpipes-timescaledb psql -U anatoli -d timescaledb -c "
+  SELECT time, haystack_name, dis, value
+  FROM sensor_readings
+  WHERE time > NOW() - INTERVAL '5 minutes'
+  ORDER BY time DESC LIMIT 10;
+"
 
 # Run Prisma migrations
 cd frontend
@@ -602,14 +422,42 @@ npx prisma generate
 npx prisma migrate reset
 ```
 
+### MQTT Testing
+
+```bash
+# Subscribe to all topics on local broker
+mosquitto_sub -h 10.0.60.3 -t "bacnet/#" -v
+
+# Subscribe to all topics on remote broker
+mosquitto_sub -h 10.0.80.3 -t "bacnet/#" -v
+
+# Publish test message
+mosquitto_pub -h 10.0.60.3 -t "bacnet/test" -m '{"value": 123}'
+
+# Test write command
+mosquitto_pub -h 10.0.60.3 -t "bacnet/write/command" -m '{
+  "deviceId": 2020521,
+  "objectType": "analog-value",
+  "objectInstance": 120,
+  "value": 21.5,
+  "priority": 8
+}'
+```
+
 ### Backup & Restore
 
 ```bash
-# Backup database
-docker exec bacpipes-postgres pg_dump -U anatoli bacpipes > backup.sql
+# Backup PostgreSQL configuration database
+docker exec bacpipes-postgres pg_dump -U anatoli bacpipes > backup_config.sql
 
-# Restore database
-docker exec -i bacpipes-postgres psql -U anatoli bacpipes < backup.sql
+# Backup TimescaleDB time-series database
+docker exec bacpipes-timescaledb pg_dump -U anatoli timescaledb > backup_timeseries.sql
+
+# Restore configuration database
+docker exec -i bacpipes-postgres psql -U anatoli bacpipes < backup_config.sql
+
+# Restore time-series database
+docker exec -i bacpipes-timescaledb psql -U anatoli timescaledb < backup_timeseries.sql
 
 # Backup Docker volumes
 docker run --rm -v bacpipes_postgres_data:/data -v $(pwd):/backup \
@@ -618,26 +466,142 @@ docker run --rm -v bacpipes_postgres_data:/data -v $(pwd):/backup \
 
 ---
 
+## User Guide
+
+### BACnet Discovery
+
+1. Navigate to http://192.168.1.35:3001/discovery
+2. Click "Start Discovery" button
+3. Wait for network scan (15-30 seconds)
+4. Review discovered devices:
+   - Device 221 "Excelsior" (192.168.1.37) - AHU controller
+   - Device 2020521 "POS466.65/100" (192.168.1.42) - Siemens controller
+5. Points are automatically saved to database
+
+### Point Configuration with Haystack Tags
+
+1. Navigate to http://192.168.1.35:3001/points
+2. Filter by device or object type
+3. Click "Edit" on any point
+4. Configure 8-field Haystack tags:
+   - **Site ID**: klcc, menara, plant_a
+   - **Equipment Type**: AHU, VAV, FCU, Chiller, CHWP, CWP, CT
+   - **Equipment ID**: 12, north_wing_01
+   - **Point Function**: sensor, setpoint, command, status
+   - **Measurement Type**: temp, pressure, flow, humidity
+   - **Substance**: air, water, steam
+   - **Location**: supply, return, outdoor
+   - **Descriptor**: actual, effective, setpoint
+5. MQTT topic auto-generates: `{site}/{equipment_type}_{equipment_id}/{object}/presentValue`
+6. Enable "Publish to MQTT" checkbox
+7. Set polling interval (default: 60 seconds)
+8. Save changes
+
+**Example Haystack Name**: `klcc.ahu.12.sensor.temp.air.supply.actual`
+
+**Generated MQTT Topic**: `klcc/ahu_12/analogInput1/presentValue`
+
+### Monitoring Dashboard
+
+Access real-time data at http://192.168.1.35:3003
+
+**Features:**
+- Live data stream with auto-updates (no page refresh)
+- In-place row updates (one row per point)
+- Natural scrolling with sticky headers
+- Topic filtering and search
+- Pause/Resume data stream
+- CSV export functionality
+- Connection status indicator
+
+**Connection Status:**
+- 🟢 Green = Connected to MQTT broker
+- 🟡 Yellow = Connecting...
+- 🔴 Red = Disconnected
+
+### BACnet Write Commands
+
+Send write commands to BACnet devices from monitoring page:
+
+1. Navigate to http://192.168.1.35:3003
+2. Find point to control
+3. Click "✏️ Write" button
+4. Enter new value
+5. Select priority level (1-16, default: 8)
+6. Click "Send Write Command"
+
+**Priority Levels:**
+- **1-2**: Life safety (highest)
+- **8**: Manual operator (recommended)
+- **16**: Scheduled/default (lowest)
+
+**Release Priority:**
+- Check "Release Priority" to remove manual override
+- Point reverts to next active priority or default value
+
+### Timezone Configuration
+
+1. Go to http://192.168.1.35:3001/settings
+2. Select timezone from dropdown
+3. Click "Save Settings"
+4. Restart worker: `docker compose restart bacnet-worker`
+5. Wait 30-60 seconds for fresh data
+
+**Available Timezones**: 500+ IANA timezones including Asia/Kuala_Lumpur, Asia/Singapore, Europe/Paris, America/New_York
+
+---
+
 ## MQTT Topic Format
 
-### Individual Topics
+### Individual Point Topics
 
-Format: `{site}/{equipment}/{point}/presentValue`
+**Format**: `{site}/{equipment}/{point}/presentValue`
 
-Examples:
-- `macau-casino/ahu_301/analogInput1/presentValue`
-- `klcc-tower/chiller_01/analogValue15/presentValue`
-- `singapore-office/vav_north_12/binaryInput3/presentValue`
+**Examples**:
+- `klcc/ahu_12/analogInput1/presentValue`
+- `menara/chiller_01/analogValue15/presentValue`
+- `plant/vav_north_12/binaryInput3/presentValue`
 
-### Batch Topics
+**Payload**:
+```json
+{
+  "value": 22.5,
+  "timestamp": "2025-11-23T15:30:00+08:00",
+  "units": "degreesCelsius",
+  "quality": "good",
+  "dis": "Supply Air Temperature",
+  "haystackName": "klcc.ahu.12.sensor.temp.air.supply.actual"
+}
+```
 
-Format: `{site}/{equipment}/batch`
+### Equipment Batch Topics (Optional)
 
-Examples:
-- `macau-casino/ahu_301/batch`
-- `klcc-tower/chiller_01/batch`
+**Format**: `{site}/{equipment}/batch`
 
-**Enable batch publishing in Settings** (disabled by default to avoid data redundancy).
+**Examples**:
+- `klcc/ahu_12/batch`
+- `menara/chiller_01/batch`
+
+**Payload**:
+```json
+{
+  "timestamp": "2025-11-23T15:30:00+08:00",
+  "equipment": "ahu_12",
+  "site": "klcc",
+  "points": [
+    {"name": "ai1", "value": 22.5, "units": "degreesCelsius", "quality": "good"},
+    {"name": "ai2", "value": 24.0, "units": "degreesCelsius", "quality": "good"},
+    {"name": "ao1", "value": 45.0, "units": "percent", "quality": "good"}
+  ],
+  "metadata": {
+    "pollCycle": 123,
+    "totalPoints": 25,
+    "successfulReads": 25
+  }
+}
+```
+
+**Note**: Batch publishing is disabled by default. Enable in Settings to avoid data redundancy.
 
 ---
 
@@ -645,26 +609,25 @@ Examples:
 
 ### Worker Not Publishing Data
 
-1. Check worker logs:
+1. **Check worker logs**:
    ```bash
    docker compose logs -f bacnet-worker
    ```
 
-2. Verify BACnet connectivity:
+2. **Verify BACnet connectivity**:
    ```bash
-   # Check if devices are reachable
    docker exec bacpipes-worker ping 192.168.1.37
    ```
 
-3. Check MQTT broker:
+3. **Check MQTT broker**:
    ```bash
-   # Test MQTT connection
-   mosquitto_sub -h 10.0.60.2 -t "#" -v
+   mosquitto_sub -h 10.0.60.3 -t "bacnet/#" -v
    ```
 
-4. Verify points enabled:
-   ```sql
-   SELECT COUNT(*) FROM "Point" WHERE "mqttPublish" = true;
+4. **Verify points enabled**:
+   ```bash
+   docker exec bacpipes-postgres psql -U anatoli -d bacpipes -c \
+     'SELECT COUNT(*) FROM "Point" WHERE "mqttPublish" = true;'
    ```
 
 ### Discovery Finds No Devices
@@ -674,206 +637,252 @@ Examples:
 3. Check firewall rules (UDP port 47808)
 4. Try manual BACnet tool (YABE) from same network
 
+### MQTT Bridge Not Forwarding
+
+1. **Check bridge logs on local broker**:
+   ```bash
+   ssh ak101@10.0.60.3
+   sudo journalctl -u mosquitto -n 50 | grep -i bridge
+   ```
+
+2. **Expected log entries**:
+   - `Connecting bridge remote-bridge (10.0.80.3:1883)`
+   - `Received CONNACK on connection remote-bridge`
+
+3. **Test connectivity**:
+   ```bash
+   # From local broker
+   nc -zv 10.0.80.3 1883
+   ```
+
+4. **See troubleshooting guide**: [MQTT_BRIDGE_SETUP.md](MQTT_BRIDGE_SETUP.md)
+
 ### Database Connection Errors
 
-1. Check PostgreSQL is running:
+1. **Check PostgreSQL**:
    ```bash
    docker compose ps postgres
    ```
 
-2. Verify connection string in .env:
+2. **Verify connection string**:
    ```bash
    grep DATABASE_URL .env
    ```
 
-3. Restart database:
+3. **Restart database**:
    ```bash
    docker compose restart postgres
    ```
 
-### Frontend Build Errors
+### TimescaleDB No Data
 
-1. Clear Next.js cache:
+1. **Check Telegraf logs**:
    ```bash
-   cd frontend
-   rm -rf .next
+   docker compose -f docker-compose-monitoring.yml logs -f telegraf
    ```
 
-2. Regenerate Prisma client:
+2. **Verify data exists**:
    ```bash
-   npx prisma generate
+   docker exec bacpipes-timescaledb psql -U anatoli -d timescaledb -c \
+     'SELECT COUNT(*) FROM sensor_readings;'
    ```
 
-3. Reinstall dependencies:
+3. **Restart Telegraf**:
    ```bash
-   rm -rf node_modules
-   npm install
+   docker compose -f docker-compose-monitoring.yml restart telegraf
    ```
 
 ---
 
-## Development
+## Development Roadmap
 
-### Running in Development Mode
+### Completed Features (v1.0.0)
 
-```bash
-# Frontend with hot-reload
-cd frontend
-npm run dev
+**Phase 1: Foundation & Core Features**
+- ✅ Full-stack Docker Compose application
+- ✅ Next.js 15 frontend with TypeScript
+- ✅ PostgreSQL database with Prisma ORM
+- ✅ BACnet discovery via web UI
+- ✅ Point management and configuration
+- ✅ Haystack tagging system (8-field semantic naming)
+- ✅ MQTT publishing to external broker
+- ✅ TimescaleDB time-series storage
+- ✅ Monitoring dashboard (port 3003)
+- ✅ BACnet write command support
+- ✅ Priority array control
 
-# Worker with auto-reload
-cd worker
-source venv/bin/activate
-python mqtt_publisher.py
-```
+**Phase 2: Modular Architecture**
+- ✅ Separated MQTT broker to dedicated LXC container (10.0.60.3)
+- ✅ Removed internal MQTT broker from Docker Compose
+- ✅ Database-driven MQTT configuration
+- ✅ Dual configuration update (.env + database)
+- ✅ Verified external broker connectivity
 
-### Making Database Changes
+**Phase 3: Monitoring & MQTT Bridge**
+- ✅ TimescaleDB hypertable for sensor_readings
+- ✅ Telegraf MQTT consumer (custom Python bridge)
+- ✅ Monitoring dashboard on port 3003
+- ✅ CSV export functionality
+- ✅ Time-range selection
+- ✅ Real-time point value display
+- ✅ MQTT bridge configured (10.0.60.3 → 10.0.80.3)
 
-```bash
-cd frontend
+### Short-Term Roadmap (Next 3 Months)
 
-# 1. Edit prisma/schema.prisma
-nano prisma/schema.prisma
+**1. Enhanced Monitoring** (Priority: High)
+- [ ] Add Grafana dashboards for visual analytics
+- [ ] Create pre-built panels for common metrics
+- [ ] Implement alerting rules (temperature thresholds, offline devices)
+- [ ] Add trend analysis (7-day, 30-day patterns)
+- [ ] Integration with external monitoring systems
 
-# 2. Create migration
-npx prisma migrate dev --name add_new_field
+**2. Data Quality & Retention** (Priority: High)
+- [ ] Implement TimescaleDB compression policies (automatic after 7 days)
+- [ ] Configure retention policies (default: 90 days, configurable)
+- [ ] Add data quality indicators (good/uncertain/bad)
+- [ ] Implement outlier detection
+- [ ] Add data validation rules
 
-# 3. Generate Prisma client
-npx prisma generate
+**3. User Authentication & Security** (Priority: Medium)
+- [ ] Add authentication to web UI (NextAuth.js)
+- [ ] Role-based access control (viewer, operator, admin)
+- [ ] API key management for external integrations
+- [ ] MQTT authentication (username/password)
+- [ ] Audit logging for configuration changes
 
-# 4. Restart services
-docker compose restart
-```
+**4. Enhanced BACnet Features** (Priority: Medium)
+- [ ] Support for BACnet trends (historical data from devices)
+- [ ] Support for BACnet schedules (read/write)
+- [ ] Support for BACnet alarms and events
+- [ ] COV (Change of Value) subscription support
+- [ ] BACnet device grouping and organization
 
-### Adding New Features
+### Mid-Term Roadmap (3-6 Months)
 
-1. Update database schema (Prisma)
-2. Create API routes (`frontend/src/app/api/`)
-3. Create UI components (`frontend/src/components/`)
-4. Update worker logic (`worker/mqtt_publisher.py`)
-5. Test locally
-6. Commit to Git
-7. Deploy via Docker Compose
+**1. Multi-Site Management**
+- [ ] Central dashboard showing all sites
+- [ ] Per-site filtering and navigation
+- [ ] Aggregated analytics across sites
+- [ ] Site identifier in MQTT topics (`site_id/equipment/point`)
+
+**2. Configuration Management**
+- [ ] Configuration templates (AHU, FCU, Chiller presets)
+- [ ] Bulk import/export (CSV, JSON, Excel)
+- [ ] Configuration versioning (track changes over time)
+- [ ] Clone configuration between sites
+- [ ] Configuration backup/restore
+
+**3. Advanced Analytics**
+- [ ] Equipment performance metrics (runtime hours, start/stop counts)
+- [ ] Energy consumption tracking
+- [ ] Efficiency calculations (COP, kW/ton)
+- [ ] Fault detection and diagnostics (FDD)
+- [ ] Predictive maintenance alerts
+
+### Long-Term Roadmap (6-12 Months)
+
+**1. Machine Learning Integration**
+- [ ] Anomaly detection (sensor drift, unusual patterns)
+- [ ] Energy optimization recommendations
+- [ ] Predictive maintenance (equipment failure prediction)
+- [ ] Occupancy pattern learning
+- [ ] Setpoint optimization
+
+**2. Integration Ecosystem**
+- [ ] RESTful API for external systems
+- [ ] GraphQL API for flexible queries
+- [ ] Webhook support for events
+- [ ] IFTTT/Zapier-style automation rules
+- [ ] Integration with BMS systems (Tridium, Siemens, JCI)
+
+**3. Advanced Scheduling**
+- [ ] Web-based schedule editor (weekly, exception, calendar)
+- [ ] Holiday calendar management
+- [ ] Occupancy-based scheduling
+- [ ] Demand response integration
+- [ ] Energy pricing integration (peak/off-peak)
+
+**4. Mobile Application**
+- [ ] Native iOS/Android apps
+- [ ] Push notifications for alarms
+- [ ] Mobile-optimized dashboard
+- [ ] Offline mode (cached data)
+- [ ] QR code scanning for equipment identification
 
 ---
 
-## Performance
+## Performance & Scaling
 
 ### Typical Resource Usage (Per Site)
 
 | Resource | Usage | Notes |
 |----------|-------|-------|
 | **CPU** | 5-10% | 2-4 cores sufficient |
-| **RAM** | 500MB | 2GB recommended |
-| **Disk** | 1GB/week | With 7-day retention |
+| **RAM** | 1-2GB | Docker stack total |
+| **Disk** | 1GB/week | TimescaleDB with 7-day retention |
 | **Network** | 10KB/s | Per 100 points at 60s intervals |
 | **MQTT msgs/sec** | 1-5 | Depends on polling frequency |
 
-### Scaling
+### Scaling Guidelines
 
 - **Single site**: Raspberry Pi 4 (4GB RAM) sufficient
 - **10 sites**: Standard VM (8GB RAM, 4 vCPU)
-- **100 sites**: Dedicated server or 10× VMs
-- **1000 sites**: Distributed cluster (see STRATEGIC_PLAN.md)
+- **100+ points**: Tested and working (current deployment)
+- **1000+ points**: Consider batching, increase worker resources
+
+### Known Limitations
+
+1. **Single BACnet Network**: Only supports devices on same network (192.168.1.0/24)
+   - Future: Support for BACnet/IP routing (BBMD)
+
+2. **No Authentication**: Web UI is open to anyone on network
+   - Mitigation: Deploy on trusted network only
+   - Roadmap: Add NextAuth.js authentication
+
+3. **Manual Haystack Tagging**: Requires user to tag each point
+   - Roadmap: Add AI-assisted tagging (pattern recognition)
+
+4. **Polling Interval**: Current default 60 seconds
+   - Can be reduced to 10-30 seconds for critical points
+   - Not recommended <10 seconds (network overhead)
 
 ---
 
-## Security
+## Documentation
 
-### Current Implementation
-
-- ✅ PostgreSQL trust authentication (localhost only)
-- ✅ MQTT without auth (internal network)
-- ✅ No TLS (internal deployment)
-- ⚠️ Suitable for trusted networks only
-
-### Production Hardening (TODO)
-
-- [ ] PostgreSQL SSL + password authentication
-- [ ] MQTT TLS + username/password
-- [ ] Frontend authentication (OAuth/SAML)
-- [ ] Role-based access control (RBAC)
-- [ ] Audit logging
-
-**For WAN deployment**, see [ROADMAP.md](ROADMAP.md) for multi-site security considerations.
+- **[CLAUDE.md](CLAUDE.md)** - Detailed technical documentation and project context
+- **[ROADMAP.md](ROADMAP.md)** - Full development roadmap with future features
+- **[MQTT_BRIDGE_SETUP.md](MQTT_BRIDGE_SETUP.md)** - Complete MQTT bridge configuration guide
+- **[doc/archive/MIGRATION_TO_MODULAR_ARCHITECTURE.md](doc/archive/MIGRATION_TO_MODULAR_ARCHITECTURE.md)** - Historical migration documentation
 
 ---
 
-## Roadmap
+## Repository
 
-See [ROADMAP.md](ROADMAP.md) for detailed development roadmap and future plans.
-
-**Current Status (v1.0.0)**:
-- ✅ Core features complete (Discovery, Configuration, MQTT Publishing, Write Commands)
-- ✅ TimescaleDB integration complete
-- ✅ Monitoring dashboard on port 3003
-- ⏳ Site-to-remote data sync (in progress)
-- 🔜 Multi-site management, advanced analytics, ML integration
-
-### Completed Features (v0.6)
-
-- ✅ Docker Compose deployment
-- ✅ Web-based BACnet discovery
-- ✅ Haystack tagging system
-- ✅ MQTT publishing with per-point intervals
-- ✅ Real-time monitoring dashboard
-- ✅ BACnet write commands with priority control
-- ✅ Configurable timezone support
-- ✅ SSE-based live data streaming
-
-### Next Up (v0.7)
-
-- [ ] TimescaleDB time-series storage
-- [ ] Historical data visualization
-- [ ] Grafana dashboard templates
-- [ ] Data export/import tools
-- [ ] Alert/notification system
-
----
-
-## Contributing
-
-### Reporting Issues
-
-Please include:
-- Docker Compose logs
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment (OS, Docker version)
-
-### Development Workflow
-
-1. Fork repository
-2. Create feature branch
-3. Test locally with Docker Compose
-4. Update documentation (README, CLAUDE.md)
-5. Submit pull request
-
----
-
-## License
-
-MIT License - See [LICENSE](LICENSE) file
-
----
-
-## Acknowledgments
-
-- **BACpypes3** - Modern BACnet stack for Python
-- **Next.js** - React framework for web UI
-- **Prisma** - Type-safe database ORM
-- **Shadcn/ui** - Component library
-- **TimescaleDB** - PostgreSQL extension for time-series
+- **Gitea**: http://10.0.10.2:30008/ak101/dev-bacnet-discovery-docker
+- **Branch**: `development` (active development)
+- **Branches**:
+  - `main`: Production releases
+  - `development`: Active development
+  - `legacy-csv-workflow`: Archived CSV-based workflow
 
 ---
 
 ## Support
 
-- **Documentation**: See [CLAUDE.md](CLAUDE.md) for detailed technical docs
-- **Roadmap**: See [ROADMAP.md](ROADMAP.md) for development plans
-- **Migration History**: See [MIGRATION_TO_MODULAR_ARCHITECTURE.md](MIGRATION_TO_MODULAR_ARCHITECTURE.md)
-- **Issues**: Create issue on Gitea repository (http://10.0.10.2:30008/ak101/dev-bacnet-discovery-docker)
+For issues or questions:
+- Check logs: `docker compose logs -f bacnet-worker`
+- Review troubleshooting section above
+- Verify network connectivity: `ping`, `nc -zv`
+- Test with `mosquitto_pub` and `mosquitto_sub` tools
+- Create issue on Gitea repository
 
 ---
 
-**Built with ❤️ for the building automation community**
+**Last Updated**: 2025-11-23
+**Status**: Production-ready for single-site deployment with MQTT bridge support
+**Version**: v1.0.0
+
+---
+
+**Built for the building automation community** 🏢
