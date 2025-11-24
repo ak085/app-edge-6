@@ -30,10 +30,11 @@ BacPipes is a distributed BACnet-to-MQTT data pipeline designed for enterprise b
 - ✅ **BACnet Discovery** - Web UI for network scanning
 - ✅ **Point Configuration** - Haystack tagging, MQTT topic generation
 - ✅ **MQTT Publishing** - Per-point intervals, external broker architecture
-- ✅ **Monitoring Dashboard** - Real-time data visualization (port 3003)
+- ✅ **Monitoring Dashboard** - Real-time SSE streaming (port 3003)
 - ✅ **BACnet Write Commands** - Priority array control
-- ✅ **Time-Series Storage** - TimescaleDB with Telegraf ingestion
+- ✅ **Time-Series Storage** - TimescaleDB with custom Python bridge
 - ✅ **MQTT Bridge** - Local-to-remote broker forwarding (configured and working)
+- ✅ **Production Deployment** - Optimized build with minimal memory footprint
 
 ---
 

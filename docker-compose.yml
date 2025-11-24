@@ -37,12 +37,8 @@ services:
       - "3001:3000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-anatoli}@postgres:5432/${POSTGRES_DB:-bacpipes}
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
       TZ: ${TZ:-Asia/Kuala_Lumpur}
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     networks:
       - bacpipes-network
     restart: unless-stopped

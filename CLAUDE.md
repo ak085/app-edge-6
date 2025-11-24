@@ -1,6 +1,6 @@
 # BacPipes - BACnet Discovery & MQTT Publishing Platform
 
-## Current Status (2025-11-21)
+## Current Status (2025-11-24)
 
 **Production Ready**: Full-stack Docker Compose application for BACnet point discovery, configuration, and MQTT publishing.
 
@@ -9,17 +9,19 @@
 - ✅ Haystack tagging system (8-field semantic naming)
 - ✅ MQTT publishing to external broker (modular architecture)
 - ✅ TimescaleDB time-series storage
-- ✅ Monitoring dashboard (port 3003)
+- ✅ Monitoring dashboard (port 3003) - Real-time SSE streaming
 - ✅ BACnet write command support (priority array control)
 - ✅ Site-to-remote data synchronization
+- ✅ Production-optimized deployment (99.6% memory reduction)
+- ✅ Bulk poll interval settings with per-point granularity
 
 ## Technology Stack
 
-- **Frontend**: Next.js 15 + TypeScript + Shadcn/ui
+- **Frontend**: Next.js 15 (Production Build) + TypeScript + Shadcn/ui
 - **Database**: PostgreSQL 15 (configuration) + TimescaleDB (time-series)
-- **Worker**: Python 3.10 + BAC0 + paho-mqtt
-- **Ingestion**: Telegraf (MQTT → TimescaleDB)
-- **Deployment**: Docker Compose
+- **Worker**: Python 3.10 + BACpypes3 + paho-mqtt
+- **Ingestion**: Custom Python bridge (MQTT → TimescaleDB)
+- **Deployment**: Docker Compose (Production Mode)
 
 ## Architecture
 
@@ -270,5 +272,44 @@ See ROADMAP.md for detailed future plans.
 
 ---
 
-**Last Updated**: 2025-11-21
+**Last Updated**: 2025-11-24
 **Status**: Production-ready for single-site deployment
+
+## Recent Updates (2025-11-24)
+
+### Performance & Stability
+- **Production Build**: Frontend now runs in production mode with optimized build
+  - Memory usage reduced from 14.7GB to 62MB (99.6% reduction)
+  - Startup time: 417ms (production) vs 3-5s (development)
+  - No more memory leaks or frozen web app
+
+### Monitoring Page Fixes
+- **SSE Connection Stability**: Fixed SSE reconnection issue causing duplicate points
+  - Removed `paused` from useEffect dependency to maintain stable connection
+  - SSE connection now stays open, filtering handled client-side
+- **Clear Button**: Fixed auto-pause behavior when clearing display
+  - Clear now only clears the display without pausing data flow
+- **Operational Topics**: Filtered `bacnet/write/*` topics from monitoring display
+  - Write commands/results no longer clutter the real-time view
+  - Only actual BACnet point data displayed
+
+### Settings Page Fixes
+- **Bulk Poll Interval**: Fixed "Failed to apply bulk poll interval" error
+  - Regenerated Prisma client to sync with database schema
+  - `allowRemoteControl` field properly mapped to database
+  - Apply button now successfully updates all MQTT-enabled points
+
+### Code Quality
+- **Next.js 15 Compliance**: Updated route handlers for async params API
+- **ESLint**: Fixed unescaped characters and React hook dependencies
+- **TypeScript**: Complete interface definitions for Point and Device models
+
+### Deployment
+- **Dockerfile**: Production-optimized build process
+  - `npm run build` during image creation
+  - `npm start` for production server
+  - Removed development bind mounts
+- **Docker Compose**: Configured for production
+  - `NODE_ENV=production` in environment
+  - No source code volumes (uses built image)
+  - Proper restart policies

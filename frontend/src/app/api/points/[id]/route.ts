@@ -6,9 +6,10 @@ import { generateMqttTopic } from "@/lib/mqtt-topic";
  * GET /api/points/[id]
  * Get a single point by ID
  */
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const pointId = parseInt(params.id);
+    const { id } = await params;
+    const pointId = parseInt(id);
 
     const point = await prisma.point.findUnique({
       where: { id: pointId },
@@ -48,9 +49,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
  * PUT /api/points/[id]
  * Update a point's configuration
  */
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const pointId = parseInt(params.id);
+    const { id } = await params;
+    const pointId = parseInt(id);
     const body = await request.json();
 
     // Extract update fields

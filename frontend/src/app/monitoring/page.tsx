@@ -560,7 +560,7 @@ export default function MonitoringPage() {
                   className="w-4 h-4"
                 />
                 <label htmlFor="releaseMode" className="text-sm font-medium">
-                  Release Priority (don't write value)
+                  Release Priority (don&apos;t write value)
                 </label>
               </div>
 

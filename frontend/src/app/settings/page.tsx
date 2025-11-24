@@ -315,12 +315,12 @@ export default function SettingsPage() {
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
                     When enabled, remote platform can send write commands to this site via MQTT.
-                    All write commands with <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">source: 'remote'</code> will be executed.
+                    All write commands with <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">source: &apos;remote&apos;</code> will be executed.
                   </p>
                   <div className="mt-2 text-sm">
                     <p className="font-medium text-orange-600">⚠️ Security Notice</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Only enable this if you have a trusted remote platform. When enabled, remote write commands will execute on this site's BACnet devices.
+                      Only enable this if you have a trusted remote platform. When enabled, remote write commands will execute on this site&apos;s BACnet devices.
                       Disable this setting to reject all remote write commands (local writes will continue to work).
                     </p>
                   </div>

@@ -24,7 +24,12 @@ interface Point {
   equipmentId?: string | null;
   pointFunction?: string | null;
   pointType?: string | null;
+  quantity?: string | null;
+  subject?: string | null;
+  location?: string | null;
+  qualifier?: string | null;
   haystackPointName?: string | null;
+  dis?: string | null;
   mqttPublish: boolean;
   pollInterval: number;
   qos: number;
