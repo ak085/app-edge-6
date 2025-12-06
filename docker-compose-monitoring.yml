@@ -68,6 +68,7 @@ services:
       TIMESCALEDB_PASSWORD: ""
       NODE_ENV: ${NODE_ENV:-production}
       TZ: ${TZ:-Asia/Kuala_Lumpur}
+      PORT: 3003
     network_mode: host
     restart: unless-stopped
 
