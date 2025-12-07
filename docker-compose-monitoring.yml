@@ -48,30 +48,6 @@ services:
     network_mode: host
     restart: unless-stopped
 
-  # Monitoring Dashboard - Next.js 15 application for TimescaleDB monitoring
-  monitoring-dashboard:
-    build:
-      context: ./monitoring-dashboard
-      dockerfile: Dockerfile
-    container_name: bacpipes-monitoring-dashboard
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-    ports:
-      - "3003:3000"
-    environment:
-      # TimescaleDB connection
-      TIMESCALEDB_HOST: localhost
-      TIMESCALEDB_PORT: 5435
-      TIMESCALEDB_DATABASE: ${TIMESCALEDB_DB:-timescaledb}
-      TIMESCALEDB_USER: ${POSTGRES_USER:-anatoli}
-      TIMESCALEDB_PASSWORD: ""
-      NODE_ENV: ${NODE_ENV:-production}
-      TZ: ${TZ:-Asia/Kuala_Lumpur}
-      PORT: 3003
-    network_mode: host
-    restart: unless-stopped
-
 # Connect to existing network created by core docker-compose.yml
 networks:
   bacpipes-network:

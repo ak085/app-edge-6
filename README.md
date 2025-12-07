@@ -49,9 +49,8 @@ nano .env  # Edit BACNET_IP and MQTT_BROKER
 docker compose up -d
 docker compose -f docker-compose-monitoring.yml up -d
 
-# 4. Access UIs
+# 4. Access UI
 # Discovery & Config: http://<your-ip>:3001
-# Monitoring Dashboard: http://<your-ip>:3003
 ```
 
 ### Common Commands
@@ -114,9 +113,6 @@ docker compose -f docker-compose-monitoring.yml up -d
 │                                             │
 │  Telegraf (MQTT → TimescaleDB)              │
 │  └─ Data ingestion bridge                   │
-│                                             │
-│  Monitoring Dashboard - Port 3003           │
-│  └─ Historical data visualization           │
 └─────────────────────────────────────────────┘
                   ↓ MQTT publish
 ┌─────────────────────────────────────────────┐
@@ -133,7 +129,7 @@ docker compose -f docker-compose-monitoring.yml up -d
 - 🏷️ **Haystack Tagging** - Industry-standard semantic naming (8-field structure)
 - 📡 **MQTT Publishing** - Real-time data streaming with configurable intervals
 - ⚙️ **Flexible MQTT** - Works with any MQTT broker on any network
-- 📊 **Monitoring Dashboard** - Real-time visualization and historical data
+- 📊 **Real-time Monitoring** - Live point values on main dashboard
 - ✏️ **BACnet Write** - Remote control with priority array support
 - ⏱️ **TimescaleDB** - Time-series data storage with automatic compression
 - 🐳 **Docker Compose** - Production-optimized deployment
@@ -236,9 +232,6 @@ docker compose logs -f
 ```bash
 # Discovery & Configuration
 http://192.168.1.35:3001
-
-# Monitoring Dashboard
-http://192.168.1.35:3003
 ```
 
 **2. Configure System Settings:**
@@ -540,14 +533,6 @@ docker compose -f docker-compose-monitoring.yml up -d
 - `/monitoring` - Real-time MQTT stream
 - `/settings` - System configuration
 
-### Monitoring Dashboard (Port 3003)
-
-**Historical Data Visualization:**
-- URL: `http://<your-ip>:3003`
-- Time-series data from TimescaleDB
-- CSV export
-- Trend analysis
-
 ### MQTT Monitoring
 
 **Subscribe to all topics:**
@@ -643,9 +628,9 @@ docker compose restart bacnet-worker
    # Or: "⚠️ MQTT broker unreachable"
    ```
 
-### No Data in Monitoring Dashboard
+### No Data in TimescaleDB
 
-**Symptoms:** Monitoring page empty, no time-series data
+**Symptoms:** No time-series data being stored
 
 **Solutions:**
 1. **Check Telegraf logs:**
@@ -767,11 +752,6 @@ BacPipes/
 │       ├── schema.prisma               # Database schema
 │       └── migrations/                 # Migration history
 │
-├── monitoring-dashboard/               # Monitoring UI (port 3003)
-│   └── src/app/
-│       ├── page.tsx                    # Main dashboard
-│       └── api/                        # TimescaleDB queries
-│
 ├── worker/                             # Python BACnet worker
 │   ├── mqtt_publisher.py               # Main polling loop
 │   ├── config.py                       # Configuration
@@ -844,8 +824,7 @@ See `.env.example` for full reference.
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Frontend | 3001 | Web UI (discovery, points, settings) |
-| Monitoring Dashboard | 3003 | Historical data visualization |
+| Frontend | 3001 | Web UI (discovery, points, settings, monitoring) |
 | PostgreSQL | 5434 | Configuration database |
 | TimescaleDB | 5435 | Time-series database |
 | BACnet Worker | 47808 | BACnet/IP protocol |

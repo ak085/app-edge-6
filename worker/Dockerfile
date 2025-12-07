@@ -19,7 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY mqtt_publisher.py .
+COPY . .
 
 # Create non-root user for security
 RUN useradd -m -u 1000 bacpipes && \
@@ -31,5 +31,5 @@ USER bacpipes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import sys; sys.exit(0)" || exit 1
 
-# Run the MQTT publisher with unbuffered output for logging
-CMD ["python", "-u", "mqtt_publisher.py"]
+# Run both job processor (for discovery) and MQTT publisher
+CMD ["sh", "-c", "python -u job_processor.py & python -u mqtt_publisher.py"]

@@ -12,7 +12,6 @@
 - ✅ **Graceful degradation** - App works even without MQTT broker
 - ✅ **Real-time MQTT status** - Dashboard shows connection status (🟢/🔴)
 - ✅ TimescaleDB time-series storage
-- ✅ Monitoring dashboard (port 3003) - Real-time SSE streaming
 - ✅ BACnet write command support (priority array control)
 - ✅ Site-to-remote data synchronization
 - ✅ Production-optimized deployment (99.6% memory reduction)
@@ -52,9 +51,6 @@
 │                                             │
 │  Telegraf (MQTT → TimescaleDB)              │
 │  └─ Data ingestion bridge                   │
-│                                             │
-│  Monitoring Dashboard - Port 3003           │
-│  └─ Historical data visualization           │
 │                                             │
 └─────────────────────────────────────────────┘
                   ↓ MQTT publish
@@ -99,12 +95,7 @@
 - Indexed on `time DESC` for fast queries
 - Haystack name + display name for semantic queries
 - Easy cleanup commands (see README.md)
-
-### 5. Monitoring Dashboard
-- Real-time point value display
-- Time-range selection
-- CSV export functionality
-- Historical data visualization
+- Data accessible via SQL queries
 
 ## Quick Start
 
@@ -121,9 +112,8 @@ nano .env  # Edit BACNET_IP and MQTT_BROKER
 docker compose up -d
 docker compose -f docker-compose-monitoring.yml up -d
 
-# Access UIs
+# Access UI
 # Discovery/Configuration: http://192.168.1.35:3001
-# Monitoring Dashboard:    http://192.168.1.35:3003
 ```
 
 ## Common Commands
@@ -236,8 +226,7 @@ NODE_ENV=production            # production or development
 
 ## Port Allocation
 
-- **3001**: Frontend (Discovery + Points + Settings)
-- **3003**: Monitoring Dashboard (Historical Data)
+- **3001**: Frontend (Discovery + Points + Settings + Monitoring)
 - **5434**: PostgreSQL (configuration)
 - **5435**: TimescaleDB (time-series)
 - **47808**: BACnet worker (protocol)
@@ -285,12 +274,30 @@ BacPipes/
 
 ## Recent Updates
 
+### 2025-12-07: Monitoring Dashboard Removal & BACnet Discovery Fix
+
+**Monitoring Dashboard Removed** - Redundant visualization service
+- Removed `monitoring-dashboard` service from `docker-compose-monitoring.yml`
+- Deleted `monitoring-dashboard/` directory
+- TimescaleDB and Telegraf remain operational for data storage
+- Historical data accessible via SQL queries
+- Port 3003 no longer in use
+
+**BACnet Discovery Fixed** - Missing discovery files in worker container
+- Root cause: Dockerfile only copied `mqtt_publisher.py`, missing `discovery.py` and `job_processor.py`
+- Updated Dockerfile to `COPY . .` (all worker files)
+- Updated CMD to run both job processor and MQTT publisher concurrently
+- Discovery now working: 2 devices, 50 points found
+- Impact: Discovery feature restored after ~1 month outage
+
+---
+
 ### 2025-12-06: Cleanup of Legacy Services & Code
 
 **Major Cleanup: Removed Unused Services and Legacy Code**
 
 #### Services Removed:
-1. **Grafana** - Legacy visualization service (replaced by custom monitoring dashboard)
+1. **Grafana** - Legacy visualization service
    - Removed from `docker-compose-monitoring.yml`
    - Removed environment variables from `.env.example`
    - Stopped and removed running container
@@ -440,5 +447,5 @@ For detailed deployment instructions, see README.md.
 
 ---
 
-**Last Updated**: 2025-12-06
+**Last Updated**: 2025-12-07
 **Status**: Production-ready for single-site deployment with flexible MQTT broker support
