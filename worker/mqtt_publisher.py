@@ -376,7 +376,7 @@ class MqttPublisher:
             logger.error(f"❌ Error processing MQTT message: {e}", exc_info=True)
 
     async def execute_write_command(self, command: Dict):
-        """Execute BACnet write command asynchronously"""
+        """Execute BACnet write command with comprehensive validation"""
         job_id = command.get('jobId')
         device_ip = command.get('deviceIp')
         device_id = command.get('deviceId')
@@ -386,7 +386,7 @@ class MqttPublisher:
         priority = command.get('priority', 8)
         release = command.get('release', False)
         point_name = command.get('pointName', 'Unknown')
-        source = command.get('source', 'edge')  # Default to 'edge' if not specified
+        source = command.get('source', 'edge')
 
         logger.info(f"📝 Executing write command {job_id} (source: {source})")
         logger.info(f"  Device: {device_id} ({device_ip})")
@@ -394,14 +394,150 @@ class MqttPublisher:
         logger.info(f"  Action: {'Release priority' if release else 'Write value'} {'' if release else value}")
         logger.info(f"  Priority: {priority}")
 
-        # Note: Comprehensive write validation (sp position-4 check, isWritable flag, value range)
-        # will be added in next phase. For now, proceed to device/point lookup.
+        validation_errors = []
+
+        # VALIDATION 1: Query point from database
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute("""
+                SELECT
+                    p.id, p."pointName", p."haystackPointName", p."isWritable",
+                    p."minPresValue", p."maxPresValue",
+                    d."ipAddress", d.port
+                FROM "Point" p
+                JOIN "Device" d ON p."deviceId" = d.id
+                WHERE d."deviceId" = %s
+                  AND p."objectType" = %s
+                  AND p."objectInstance" = %s
+                LIMIT 1
+            """, (device_id, object_type, object_instance))
+
+            point = cursor.fetchone()
+            cursor.close()
+
+            if not point:
+                validation_errors.append({
+                    "field": "point",
+                    "code": "POINT_NOT_FOUND",
+                    "message": f"Point not found in database: device={device_id}, {object_type}:{object_instance}"
+                })
+                result = self._create_validation_error_result(job_id, device_id, point_name, validation_errors)
+                self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+                logger.error(f"❌ Write command {job_id} failed validation: Point not found")
+                return
+
+        except Exception as e:
+            logger.error(f"❌ Database query failed: {e}", exc_info=True)
+            validation_errors.append({
+                "field": "database",
+                "code": "DATABASE_ERROR",
+                "message": f"Database query failed: {str(e)}"
+            })
+            result = self._create_validation_error_result(job_id, device_id, point_name, validation_errors)
+            self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+            return
+
+        # Extract point data
+        point_id = point['id']
+        haystack_name = point['haystackPointName']
+        is_writable = point['isWritable']
+        min_val = point.get('minPresValue')
+        max_val = point.get('maxPresValue')
+        actual_device_ip = point['ipAddress']
+        actual_device_port = point['port']
+
+        # VALIDATION 2: Check Haystack name position-4 must be "sp"
+        if haystack_name:
+            parts = haystack_name.split('.')
+            if len(parts) >= 4:
+                position_4 = parts[3]
+                if position_4 != 'sp':
+                    validation_errors.append({
+                        "field": "haystackName",
+                        "code": "INVALID_POINT_FUNCTION",
+                        "message": f"Write not allowed: position-4 must be 'sp' (setpoint), found '{position_4}'",
+                        "haystackName": haystack_name,
+                        "expected": "sp",
+                        "actual": position_4
+                    })
+            else:
+                validation_errors.append({
+                    "field": "haystackName",
+                    "code": "INVALID_HAYSTACK_FORMAT",
+                    "message": f"Invalid haystack name format: {haystack_name}",
+                    "expected": "minimum 4 parts (site.equip.id.sp...)",
+                    "actual": f"{len(parts)} parts"
+                })
+        else:
+            logger.warning(f"⚠️  Point {point_name} has no haystack name - skipping position-4 validation")
+
+        # VALIDATION 3: Check isWritable flag
+        if not is_writable:
+            validation_errors.append({
+                "field": "isWritable",
+                "code": "POINT_NOT_WRITABLE",
+                "message": f"Point '{point_name}' is not writable (isWritable=false)"
+            })
+
+        # VALIDATION 4: Validate priority range (1-16)
+        if not (1 <= priority <= 16):
+            validation_errors.append({
+                "field": "priority",
+                "code": "INVALID_PRIORITY",
+                "message": f"Priority must be between 1 and 16, got {priority}",
+                "expected": "1-16",
+                "actual": priority
+            })
+
+        # VALIDATION 5: Validate value range (if configured and not releasing)
+        if not release and value is not None:
+            try:
+                value_float = float(value)
+
+                if min_val is not None and value_float < min_val:
+                    validation_errors.append({
+                        "field": "value",
+                        "code": "VALUE_BELOW_MINIMUM",
+                        "message": f"Value {value_float} is below minimum {min_val}",
+                        "min": min_val,
+                        "max": max_val,
+                        "actual": value_float
+                    })
+
+                if max_val is not None and value_float > max_val:
+                    validation_errors.append({
+                        "field": "value",
+                        "code": "VALUE_ABOVE_MAXIMUM",
+                        "message": f"Value {value_float} is above maximum {max_val}",
+                        "min": min_val,
+                        "max": max_val,
+                        "actual": value_float
+                    })
+
+            except (ValueError, TypeError) as e:
+                validation_errors.append({
+                    "field": "value",
+                    "code": "INVALID_VALUE_TYPE",
+                    "message": f"Value must be numeric, got: {value}",
+                    "actual": str(value)
+                })
+
+        # If validation failed, return error result
+        if validation_errors:
+            result = self._create_validation_error_result(job_id, device_id, point_name, validation_errors)
+            self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+            logger.error(f"❌ Write command {job_id} failed validation: {len(validation_errors)} error(s)")
+            for error in validation_errors:
+                logger.error(f"   - {error['code']}: {error['message']}")
+            return
+
+        # ALL VALIDATIONS PASSED - Execute BACnet write
+        logger.info(f"✅ All validations passed for write command {job_id}")
 
         try:
-            # Execute BACnet write
             success, error_msg = await self.write_bacnet_value(
-                device_ip=device_ip,
-                device_port=47808,  # Standard BACnet port
+                device_ip=actual_device_ip,
+                device_port=actual_device_port,
                 object_type=object_type,
                 object_instance=object_instance,
                 value=value,
@@ -417,9 +553,11 @@ class MqttPublisher:
                 "error": error_msg if not success else None,
                 "deviceId": device_id,
                 "pointName": point_name,
+                "haystackName": haystack_name,
                 "value": value,
                 "priority": priority,
-                "release": release
+                "release": release,
+                "validationErrors": []
             }
 
             self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
@@ -432,7 +570,6 @@ class MqttPublisher:
         except Exception as e:
             logger.error(f"❌ Exception executing write command {job_id}: {e}", exc_info=True)
 
-            # Publish error result
             result = {
                 "jobId": job_id,
                 "success": False,
@@ -440,8 +577,25 @@ class MqttPublisher:
                 "error": str(e),
                 "deviceId": device_id,
                 "pointName": point_name,
+                "validationErrors": [{
+                    "field": "bacnet",
+                    "code": "BACNET_WRITE_EXCEPTION",
+                    "message": str(e)
+                }]
             }
             self.mqtt_client.publish("bacnet/write/result", json.dumps(result), qos=1)
+
+    def _create_validation_error_result(self, job_id: str, device_id: int, point_name: str, validation_errors: list) -> dict:
+        """Create standardized validation error result"""
+        return {
+            "jobId": job_id,
+            "success": False,
+            "timestamp": datetime.now(self.timezone).isoformat(),
+            "deviceId": device_id,
+            "pointName": point_name,
+            "error": "Validation failed",
+            "validationErrors": validation_errors
+        }
 
     async def process_write_commands(self):
         """Process any pending write commands from the queue (called from main loop)"""

@@ -77,6 +77,10 @@ model Point {
   priorityArray         Boolean   @default(false)  // Has priority array (16 levels)
   priorityLevel         Int?      // Default priority for writes (1-16)
 
+  // Value range validation (for write commands)
+  minPresValue          Float?    // Minimum allowed present value
+  maxPresValue          Float?    // Maximum allowed present value
+
   // Operational metadata
   lastValue             String?   // Last polled value (for quick dashboard display)
   lastPollTime          DateTime? // When last successfully polled

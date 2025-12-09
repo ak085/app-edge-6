@@ -37,6 +37,8 @@ interface Point {
   enabled: boolean;
   isWritable: boolean;
   isReadable: boolean;
+  minPresValue?: number | null;
+  maxPresValue?: number | null;
 }
 
 interface PointEditorProps {
@@ -146,6 +148,10 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
   // Writability configuration
   const [isWritable, setIsWritable] = useState(point.isWritable);
 
+  // Value range validation
+  const [minPresValue, setMinPresValue] = useState(point.minPresValue?.toString() || "");
+  const [maxPresValue, setMaxPresValue] = useState(point.maxPresValue?.toString() || "");
+
   const [saving, setSaving] = useState(false);
   const [defaultPollInterval, setDefaultPollInterval] = useState<number | null>(null);
 
@@ -217,6 +223,8 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
           pollInterval: parseInt(pollInterval),
           qos: parseInt(qos),
           isWritable,
+          minPresValue: minPresValue ? parseFloat(minPresValue) : null,
+          maxPresValue: maxPresValue ? parseFloat(maxPresValue) : null,
         }),
       });
 
@@ -234,6 +242,29 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
       setSaving(false);
     }
   }
+
+  // Smart placeholder generation based on engineering units
+  const getMinPlaceholder = (units: string | null | undefined) => {
+    if (!units) return "e.g., 0";
+    if (units === 'degrees-celsius') return "e.g., 15";
+    if (units === 'degrees-fahrenheit') return "e.g., 60";
+    if (units === 'percent') return "e.g., 0";
+    if (units === 'kilowatts' || units === 'watts') return "e.g., 0";
+    if (units === 'pascal' || units === 'kilopascal') return "e.g., 100";
+    return "Minimum";
+  };
+
+  const getMaxPlaceholder = (units: string | null | undefined) => {
+    if (!units) return "e.g., 100";
+    if (units === 'degrees-celsius') return "e.g., 30";
+    if (units === 'degrees-fahrenheit') return "e.g., 85";
+    if (units === 'percent') return "e.g., 100";
+    if (units === 'kilowatts') return "e.g., 100";
+    if (units === 'watts') return "e.g., 1000";
+    if (units === 'pascal') return "e.g., 500";
+    if (units === 'kilopascal') return "e.g., 50";
+    return "Maximum";
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -577,6 +608,101 @@ export default function PointEditor({ point, isOpen, onClose, onSave }: PointEdi
               <p className="text-xs text-muted-foreground -mt-3">
                 Check this to allow BACnet writes to this point. Auto-detected during discovery but can be overridden.
               </p>
+
+              {/* Write Validation Section - Only for writable points */}
+              {isWritable && (
+                <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                  <h4 className="text-sm font-semibold mb-2 text-blue-900">
+                    Write Validation (Optional)
+                  </h4>
+
+                  {/* Context-aware help for setpoints */}
+                  {pointFunction === 'sp' && (
+                    <p className="text-xs text-blue-700 mb-3 font-medium">
+                      ⚠️ <strong>Recommended for Setpoints:</strong> Set min/max values to prevent
+                      equipment damage from invalid setpoint commands.
+                    </p>
+                  )}
+
+                  {pointFunction === 'cmd' && (
+                    <p className="text-xs text-blue-700 mb-3">
+                      💡 Optional for commands: Set limits if command accepts numeric values.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Minimum Value {pointFunction === 'sp' && <span className="text-amber-600">*</span>}
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={minPresValue}
+                        onChange={(e) => setMinPresValue(e.target.value)}
+                        placeholder={getMinPlaceholder(point.units)}
+                        className="input w-full bg-white border-2 border-input px-3 py-2 rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Maximum Value {pointFunction === 'sp' && <span className="text-amber-600">*</span>}
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={maxPresValue}
+                        onChange={(e) => setMaxPresValue(e.target.value)}
+                        placeholder={getMaxPlaceholder(point.units)}
+                        className="input w-full bg-white border-2 border-input px-3 py-2 rounded-md"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Smart hints based on units */}
+                  <div className="mt-3 text-xs">
+                    {point.units === 'degrees-celsius' && (
+                      <p className="text-blue-700">
+                        💡 <strong>Example:</strong> Cooling setpoint 15-30°C, Heating setpoint 18-25°C
+                      </p>
+                    )}
+                    {point.units === 'degrees-fahrenheit' && (
+                      <p className="text-blue-700">
+                        💡 <strong>Example:</strong> Cooling setpoint 60-85°F, Heating setpoint 65-75°F
+                      </p>
+                    )}
+                    {point.units === 'percent' && (
+                      <p className="text-blue-700">
+                        💡 <strong>Example:</strong> Valve/Damper position 0-100%, Humidity setpoint 30-70%
+                      </p>
+                    )}
+                    {(point.units === 'kilowatts' || point.units === 'watts') && (
+                      <p className="text-blue-700">
+                        💡 <strong>Example:</strong> Power limit 0-100kW based on equipment capacity
+                      </p>
+                    )}
+                    {(point.units === 'pascal' || point.units === 'kilopascal') && (
+                      <p className="text-blue-700">
+                        💡 <strong>Example:</strong> Pressure setpoint 100-500Pa for static pressure control
+                      </p>
+                    )}
+
+                    {/* Warning when no limits set */}
+                    {!minPresValue && !maxPresValue && (
+                      <p className="text-amber-700 font-medium">
+                        ⚠️ No limits configured - any value will be accepted (not recommended for setpoints)
+                      </p>
+                    )}
+
+                    {/* Validation preview */}
+                    {minPresValue && maxPresValue && (
+                      <p className="text-green-700 font-medium">
+                        ✅ Write commands will be validated: {minPresValue} to {maxPresValue} {point.units}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Poll Interval */}

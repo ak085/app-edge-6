@@ -71,6 +71,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       qos,
       enabled,
       isWritable,
+      minPresValue,
+      maxPresValue,
     } = body;
 
     // Prepare update data
@@ -90,6 +92,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (qos !== undefined) updateData.qos = parseInt(qos);
     if (enabled !== undefined) updateData.enabled = enabled;
     if (isWritable !== undefined) updateData.isWritable = isWritable;
+    if (minPresValue !== undefined) updateData.minPresValue = minPresValue;
+    if (maxPresValue !== undefined) updateData.maxPresValue = maxPresValue;
 
     // Get current point data to generate MQTT topic
     const currentPoint = await prisma.point.findUnique({

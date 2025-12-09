@@ -41,6 +41,8 @@ interface Point {
   enabled: boolean;
   isReadable: boolean;
   isWritable: boolean;
+  minPresValue?: number | null;
+  maxPresValue?: number | null;
   lastValue?: string | null;
   lastPollTime?: string | null;
 }
