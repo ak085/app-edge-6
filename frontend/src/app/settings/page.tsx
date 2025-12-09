@@ -8,8 +8,6 @@ interface Settings {
   bacnetPort: number;
   mqttBroker: string;
   mqttPort: number;
-  enableBatchPublishing: boolean;
-  allowRemoteControl: boolean;
   timezone: string;
   defaultPollInterval: number;
 }
@@ -20,8 +18,6 @@ export default function SettingsPage() {
     bacnetPort: 47808,
     mqttBroker: "",
     mqttPort: 1883,
-    enableBatchPublishing: false,
-    allowRemoteControl: false,
     timezone: "Asia/Kuala_Lumpur",
     defaultPollInterval: 60,
   });
@@ -60,8 +56,6 @@ export default function SettingsPage() {
           bacnetPort: data.settings.bacnetPort || 47808,
           mqttBroker: data.settings.mqttBroker || "",
           mqttPort: data.settings.mqttPort || 1883,
-          enableBatchPublishing: data.settings.enableBatchPublishing || false,
-          allowRemoteControl: data.settings.allowRemoteControl || false,
           timezone: data.settings.timezone || "Asia/Kuala_Lumpur",
           defaultPollInterval: data.settings.defaultPollInterval || 60,
         };
@@ -256,80 +250,6 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Standard MQTT port (default: 1883)
                 </p>
-              </div>
-            </div>
-
-            {/* Batch Publishing Toggle */}
-            <div className="mt-6 pt-6 border-t border-border">
-              <h3 className="text-lg font-semibold mb-3">Publishing Options</h3>
-
-              <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
-                <input
-                  type="checkbox"
-                  id="enableBatchPublishing"
-                  checked={settings.enableBatchPublishing}
-                  onChange={(e) => setSettings({ ...settings, enableBatchPublishing: e.target.checked })}
-                  className="mt-1 h-4 w-4 rounded border-gray-300"
-                />
-                <div className="flex-1">
-                  <label htmlFor="enableBatchPublishing" className="block font-medium cursor-pointer">
-                    Enable Equipment Batch Publishing
-                  </label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Publish aggregated equipment-level batch topics (e.g., <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">macau-casino/ahu_301/batch</code>).
-                    When enabled, each equipment publishes both individual point topics AND one batch topic containing all points with synchronized timestamps.
-                  </p>
-                  <div className="mt-2 text-sm">
-                    <p className="font-medium text-orange-600">⚠️ Note: Data Redundancy</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      With batch publishing enabled, the same sensor reading is sent twice: once as an individual topic and once in the batch.
-                      Make sure your MQTT subscribers handle this appropriately to avoid duplicate data storage.
-                    </p>
-                  </div>
-                  <div className="mt-2 text-sm">
-                    <p className="font-medium text-blue-600">💡 Use Case</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Batch topics are designed for ML/AI applications that require synchronized timestamps and complete feature vectors.
-                      For standard BMS/SCADA applications, keep this disabled.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Remote Control Toggle */}
-            <div className="mt-6 pt-6 border-t border-border">
-              <h3 className="text-lg font-semibold mb-3">Remote Control</h3>
-
-              <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border-2 border-orange-200">
-                <input
-                  type="checkbox"
-                  id="allowRemoteControl"
-                  checked={settings.allowRemoteControl}
-                  onChange={(e) => setSettings({ ...settings, allowRemoteControl: e.target.checked })}
-                  className="mt-1 h-4 w-4 rounded border-gray-300"
-                />
-                <div className="flex-1">
-                  <label htmlFor="allowRemoteControl" className="block font-medium cursor-pointer">
-                    Allow Remote Platform Control
-                  </label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    When enabled, remote platform can send write commands to this site via MQTT.
-                    All write commands with <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">source: &apos;remote&apos;</code> will be executed.
-                  </p>
-                  <div className="mt-2 text-sm">
-                    <p className="font-medium text-orange-600">⚠️ Security Notice</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Only enable this if you have a trusted remote platform. When enabled, remote write commands will execute on this site&apos;s BACnet devices.
-                      Disable this setting to reject all remote write commands (local writes will continue to work).
-                    </p>
-                  </div>
-                  {settings.allowRemoteControl && (
-                    <div className="mt-2 p-2 bg-orange-100 border border-orange-300 rounded text-xs text-orange-900">
-                      <strong>🔓 Remote Control ENABLED</strong> - Remote platform can control this site
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>

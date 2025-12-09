@@ -148,8 +148,6 @@ export async function GET() {
             port: mqttConfig?.port || 1883,
             connected: mqttConnected,
             configured: isMqttConfigured,
-            enableBatchPublishing: mqttConfig?.enableBatchPublishing || false,
-            allowRemoteControl: mqttConfig?.allowRemoteControl || false,
           },
           system: {
             timezone: systemSettings?.timezone || 'UTC',

@@ -24,8 +24,6 @@ interface DashboardData {
       port: number
       connected: boolean
       configured: boolean
-      enableBatchPublishing: boolean
-      allowRemoteControl: boolean
     }
     system: {
       timezone: string

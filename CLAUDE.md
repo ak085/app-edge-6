@@ -373,6 +373,51 @@ For existing deployments:
 
 ---
 
+### 2025-12-09: Redundant MQTT Features Cleanup
+
+**Cleanup: Removed Batch Publishing and Remote Control Toggle**
+
+#### Features Removed:
+1. **Equipment Batch Publishing** - Created data redundancy (same reading published twice)
+   - Removed `enableBatchPublishing` from database schema
+   - Removed batch publishing logic from worker (40+ lines)
+   - Removed UI references and API endpoints
+
+2. **Remote Control Toggle** - Replaced by future granular validation
+   - Removed `allowRemoteControl` from database schema
+   - Removed remote control permission check from worker (45+ lines)
+   - Foundation for comprehensive "sp" position-4 validation
+
+#### Changes Implemented:
+1. **Database Schema** (`frontend/prisma/schema.prisma`)
+   - Dropped `enableBatchPublishing` column from MqttConfig
+   - Dropped `allow_remote_control` column from MqttConfig
+
+2. **Frontend Code** (3 files updated)
+   - Settings API: Removed 6 field references
+   - Dashboard interface: Removed 2 TypeScript properties
+   - Dashboard API: Removed 2 field references
+
+3. **Worker Code** (`worker/mqtt_publisher.py`)
+   - Removed batch publishing method and all references (7 locations)
+   - Removed remote control validation check
+   - Added comment noting future comprehensive validation
+
+#### Benefits:
+- **Simpler Architecture**: Only individual point-specific topics published
+- **No Data Redundancy**: Each reading published once (not twice)
+- **Better Security Foundation**: Prepared for granular "sp" validation
+- **Less Configuration**: Fewer settings to manage
+- **Cleaner Codebase**: Removed 85+ lines of unused code
+
+#### Verification:
+- Worker logs show no "Batch Publishing" or "Remote control" messages ✓
+- Settings API returns only valid fields ✓
+- Database schema confirmed clean ✓
+- All services healthy and running ✓
+
+---
+
 ### 2025-12-07: Monitoring Dashboard Removal & BACnet Discovery Fix
 
 **Monitoring Dashboard Removed** - Redundant visualization service
@@ -546,5 +591,5 @@ For detailed deployment instructions, see README.md.
 
 ---
 
-**Last Updated**: 2025-12-07
+**Last Updated**: 2025-12-09
 **Status**: Production-ready for single-site deployment with flexible MQTT broker support

@@ -36,8 +36,6 @@ export async function GET() {
       bacnetPort: systemSettings.bacnetPort,
       mqttBroker: mqttConfig.broker,
       mqttPort: mqttConfig.port,
-      enableBatchPublishing: mqttConfig.enableBatchPublishing,
-      allowRemoteControl: mqttConfig.allowRemoteControl,
       timezone: systemSettings.timezone,
       defaultPollInterval: systemSettings.defaultPollInterval,
     };
@@ -97,8 +95,6 @@ export async function PUT(request: Request) {
         data: {
           broker: body.mqttBroker,
           port: body.mqttPort,
-          enableBatchPublishing: body.enableBatchPublishing !== undefined ? body.enableBatchPublishing : mqttConfig.enableBatchPublishing,
-          allowRemoteControl: body.allowRemoteControl !== undefined ? body.allowRemoteControl : mqttConfig.allowRemoteControl,
         },
       });
     } else {
@@ -107,8 +103,6 @@ export async function PUT(request: Request) {
           broker: body.mqttBroker,
           port: body.mqttPort,
           clientId: "bacpipes_worker",
-          enableBatchPublishing: body.enableBatchPublishing || false,
-          allowRemoteControl: body.allowRemoteControl || false,
         },
       });
     }

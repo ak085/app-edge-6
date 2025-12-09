@@ -116,12 +116,6 @@ model MqttConfig {
   writeCommandTopic String    @default("bacnet/write/command")
   writeResultTopic  String    @default("bacnet/write/result")
 
-  // Publishing Options
-  enableBatchPublishing Boolean @default(false)  // Publish equipment-level batch topics (for ML/AI)
-
-  // Remote Control
-  allowRemoteControl Boolean @default(false) @map("allow_remote_control")  // Allow remote platform to control this site
-
   // Status
   enabled           Boolean   @default(true)
 
