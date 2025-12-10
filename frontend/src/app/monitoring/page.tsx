@@ -30,6 +30,7 @@ interface Point {
   isWritable: boolean;
   mqttTopic: string;
   dis: string | null;
+  haystackPointName: string | null;
   device: {
     deviceName: string;
     ipAddress: string;
@@ -524,7 +525,7 @@ export default function MonitoringPage() {
             >
               <option value="">All Points ({points.length})</option>
               {points.map((point) => (
-                <option key={point.id} value={point.mqttTopic.split('/').slice(2).join('.')}>
+                <option key={point.id} value={point.haystackPointName || ''}>
                   {point.dis || point.pointName}
                 </option>
               ))}

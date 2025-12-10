@@ -60,7 +60,13 @@ export async function GET(request: NextRequest) {
     await client.end();
 
     if (format === 'json') {
-      return NextResponse.json(result.rows);
+      const jsonContent = JSON.stringify(result.rows, null, 2);
+      return new NextResponse(jsonContent, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="sensor_data_${start}_${end}.json"`,
+        },
+      });
     }
 
     // Convert to CSV

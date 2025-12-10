@@ -28,6 +28,19 @@
 - ✅ Value range validation (min/max enforcement)
 - ✅ Detailed validation error reporting via MQTT
 
+**Phase 4: CSV/JSON Export API for TimescaleDB** - ✅ **COMPLETE**
+- REST API endpoint for exporting historical sensor data: GET /api/timeseries/export
+- Supports CSV and JSON formats with proper Content-Disposition headers
+- Query parameters: start (ISO 8601), end (ISO 8601), haystackName (optional), format (csv|json)
+- Safety limit: 10,000 rows per export
+- Proper CSV escaping for commas, quotes, and newlines
+- Frontend UI with export card on Monitoring page
+- Quick time presets (1h, 6h, 12h, 24h, 7d, 30d) and custom date range picker
+- Point filtering dropdown for individual point exports
+- TimescaleDB connection configured in docker-compose.yml and .env
+- Production tested and verified
+- Implementation date: 2025-12-10
+
 ---
 
 ## Remaining Implementation Tasks
@@ -378,198 +391,19 @@ Add MQTT authentication section:
 
 ---
 
-### Phase 4: CSV Export API for TimescaleDB
-
-**Status:** 🔴 Not Started
-**Priority:** LOW (Nice to have)
-
-#### Goal
-Provide REST API endpoint to export historical sensor data from TimescaleDB as CSV or JSON.
-
-#### Implementation
-
-**1. Create API Endpoint** (`frontend/src/app/api/timeseries/export/route.ts`)
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { Client } from 'pg';
-
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-
-  // Parse query parameters
-  const start = searchParams.get('start'); // ISO 8601 timestamp
-  const end = searchParams.get('end');
-  const haystackName = searchParams.get('haystackName'); // Optional filter
-  const format = searchParams.get('format') || 'csv'; // csv or json
-
-  if (!start || !end) {
-    return NextResponse.json(
-      { error: 'Missing required parameters: start, end' },
-      { status: 400 }
-    );
-  }
-
-  try {
-    // Connect to TimescaleDB
-    const client = new Client({
-      host: process.env.TIMESCALEDB_HOST || 'localhost',
-      port: parseInt(process.env.TIMESCALEDB_PORT || '5435'),
-      database: process.env.TIMESCALEDB_DB || 'timescaledb',
-      user: process.env.TIMESCALEDB_USER || 'anatoli',
-      password: process.env.TIMESCALEDB_PASSWORD || '',
-    });
-
-    await client.connect();
-
-    // Build query
-    let query = `
-      SELECT
-        time,
-        haystack_name,
-        dis,
-        value,
-        units,
-        quality,
-        device_name,
-        device_ip,
-        object_type,
-        object_instance
-      FROM sensor_readings
-      WHERE time >= $1 AND time <= $2
-    `;
-
-    const params: any[] = [start, end];
-
-    if (haystackName) {
-      query += ` AND haystack_name = $3`;
-      params.push(haystackName);
-    }
-
-    query += ` ORDER BY time DESC LIMIT 10000`; // Safety limit
-
-    // Execute query
-    const result = await client.query(query, params);
-    await client.end();
-
-    if (format === 'json') {
-      return NextResponse.json(result.rows);
-    }
-
-    // Convert to CSV
-    if (result.rows.length === 0) {
-      return new NextResponse('No data found', {
-        headers: { 'Content-Type': 'text/csv' },
-      });
-    }
-
-    const headers = Object.keys(result.rows[0]);
-    const csvLines = [
-      headers.join(','), // Header row
-      ...result.rows.map(row =>
-        headers.map(h => {
-          const value = row[h];
-          // Escape commas and quotes
-          if (value === null) return '';
-          const strValue = String(value);
-          if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
-            return `"${strValue.replace(/"/g, '""')}"`;
-          }
-          return strValue;
-        }).join(',')
-      )
-    ];
-
-    const csv = csvLines.join('\n');
-
-    return new NextResponse(csv, {
-      headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="sensor_data_${start}_${end}.csv"`,
-      },
-    });
-
-  } catch (error) {
-    console.error('Export error:', error);
-    return NextResponse.json(
-      { error: 'Export failed', details: String(error) },
-      { status: 500 }
-    );
-  }
-}
-```
-
-**2. Add Package Dependency**
-
-```bash
-cd frontend
-npm install pg
-```
-
-**3. Update Environment Variables**
-
-Add to `frontend/.env`:
-```bash
-TIMESCALEDB_HOST=localhost
-TIMESCALEDB_PORT=5435
-TIMESCALEDB_DB=timescaledb
-TIMESCALEDB_USER=anatoli
-TIMESCALEDB_PASSWORD=
-```
-
-**4. Frontend UI (Optional)**
-
-Add export button to Monitoring page:
-```typescript
-// Example usage
-const exportData = async () => {
-  const start = '2025-12-09T00:00:00Z';
-  const end = '2025-12-09T23:59:59Z';
-  const url = `/api/timeseries/export?start=${start}&end=${end}&format=csv`;
-
-  window.open(url, '_blank'); // Download CSV
-};
-```
-
-**5. Testing**
-
-- [ ] Export CSV for 1 hour time range
-- [ ] Export JSON for 1 day time range
-- [ ] Filter by specific haystack name
-- [ ] Test with no data (empty result)
-- [ ] Test CSV escaping (commas, quotes, newlines)
-- [ ] Test 10,000 row limit
-- [ ] Verify file download works in browser
-
----
-
 ## Implementation Priority
 
-1. **Phase 2** (Write Validation) - **Start Next** - Security critical
-2. **Phase 3** (MQTT Auth/TLS) - Required for production WAN deployment
-3. **Phase 4** (CSV Export) - Nice to have, low priority
+1. **Phase 3** (MQTT Auth/TLS) - **Next Priority** - Required for production WAN deployment
 
 ---
 
 ## Testing Strategy
-
-### Phase 2 Testing
-- Unit tests for validation logic
-- Integration tests with actual MQTT broker
-- Test matrix: all validation failure scenarios
-- Verify validationErrors published correctly
 
 ### Phase 3 Testing
 - Test with Mosquitto (username/password + TLS)
 - Test with EMQX (cloud broker)
 - Test certificate expiration handling
 - Test connection failure scenarios
-
-### Phase 4 Testing
-- Test various time ranges (1h, 1d, 7d, 30d)
-- Test large datasets (10k+ rows)
-- Test CSV formatting edge cases
-- Test API performance under load
 
 ---
 
@@ -583,5 +417,5 @@ After each phase:
 
 ---
 
-**Last Updated:** 2025-12-09
-**Next Milestone:** Phase 2 - Write Command Validation
+**Last Updated:** 2025-12-10
+**Next Milestone:** Phase 3 - MQTT Authentication & TLS Support

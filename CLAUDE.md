@@ -319,11 +319,20 @@ BacPipes/
 - **Frontend UI**: "Export Historical Data" card on Monitoring page
   - Quick time presets: 1h, 6h, 12h, 24h, 7d, 30d
   - Custom date/time range picker
-  - Point filter dropdown
+  - Point filter dropdown (filters by haystackPointName)
   - Format selector (CSV/JSON)
 - **Configuration**: Added TIMESCALEDB_* environment variables to docker-compose.yml frontend service
 - **Files Added**: `frontend/src/app/api/timeseries/export/route.ts`
 - **Files Modified**: `frontend/src/app/monitoring/page.tsx`, `docker-compose.yml`, `.env`, `frontend/.env`
+
+**Bug Fixes (Export Feature)**
+- **Issue 1**: JSON export was opening in browser instead of downloading as file
+  - **Fix**: Added `Content-Disposition: attachment` header to JSON response (route.ts:62-70)
+  - **Result**: JSON now downloads as .json file
+- **Issue 2**: Individual point filtering was failing for both CSV and JSON exports
+  - **Root Cause**: Point interface missing `haystackPointName` field, dropdown using incorrect field
+  - **Fix**: Added `haystackPointName` to TypeScript Point interface, updated dropdown to use correct field (monitoring/page.tsx:33,527)
+  - **Result**: Point filtering now works correctly for all export formats
 
 ---
 
