@@ -7,6 +7,8 @@ Based on scripts/01_discovery_production.py but database-driven.
 
 import asyncio
 import sys
+import socket
+from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import psycopg2
@@ -137,6 +139,16 @@ class DiscoveryApp(NormalApplication):
             print(f"      Error reading object {obj_id}: {e}")
 
 
+def is_port_in_use(port: int) -> bool:
+    """Check if a UDP port is currently in use"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(('', port))
+            return False  # Port is available
+    except OSError:
+        return True  # Port is in use
+
+
 def run_discovery(job_id: str):
     """
     Main discovery function - called by API endpoint
@@ -213,35 +225,64 @@ def run_discovery(job_id: str):
 async def discovery_main(job_id: str, ip_address: str, port: int, timeout: int, device_id: int, conn):
     """Async discovery main loop"""
 
-    # Create BACpypes3 application
-    local_addr = Address(f"{ip_address}/24:{port}")
-    app = DiscoveryApp(local_addr, device_id, timeout)
+    # Discovery coordination lock file
+    lock_file = Path("/tmp/bacnet_discovery_active")
 
-    print(f"\nStarting discovery on {local_addr}...")
-    print("Sending Who-Is request...")
+    try:
+        # Create lock file to signal mqtt_publisher to shutdown
+        lock_file.touch()
+        print(f"🔒 Discovery lock created - signaling mqtt_publisher to release port {port}...")
 
-    # Calculate broadcast address (assumes /24 subnet)
-    ip_parts = ip_address.split('.')
-    broadcast_ip = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.255"
+        # Wait for port to be released (check with socket)
+        max_wait = 10  # seconds
+        print(f"⏳ Waiting for port {port} to be released (max {max_wait}s)...")
+        for i in range(max_wait):
+            if not is_port_in_use(port):
+                print(f"✅ Port {port} is now available")
+                break
+            await asyncio.sleep(1)
+            if (i + 1) % 3 == 0:  # Progress update every 3 seconds
+                print(f"   Still waiting... ({i + 1}s elapsed)")
+        else:
+            error_msg = f"Timeout: mqtt_publisher did not release port {port} in {max_wait}s"
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)
 
-    # Send Who-Is request
-    who_is = WhoIsRequest(destination=Address(f"{broadcast_ip}/24"))
-    await app.request(who_is)
+        # Create BACpypes3 application
+        local_addr = Address(f"{ip_address}/24:{port}")
+        app = DiscoveryApp(local_addr, device_id, timeout)
 
-    # Wait for responses
-    print(f"Waiting {timeout}s for device responses...")
-    await asyncio.sleep(timeout)
+        print(f"\nStarting discovery on {local_addr}...")
+        print("Sending Who-Is request...")
 
-    # Process results
-    print(f"\n=== Discovery Complete ===")
-    print(f"Found {len(app.found_devices)} devices")
-    print(f"Collected {len(app.all_points)} points")
+        # Calculate broadcast address (assumes /24 subnet)
+        ip_parts = ip_address.split('.')
+        broadcast_ip = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.255"
 
-    # Save to database
-    save_to_database(job_id, app.found_devices, app.all_points, conn)
+        # Send Who-Is request
+        who_is = WhoIsRequest(destination=Address(f"{broadcast_ip}/24"))
+        await app.request(who_is)
 
-    # Close application
-    app.close()
+        # Wait for responses
+        print(f"Waiting {timeout}s for device responses...")
+        await asyncio.sleep(timeout)
+
+        # Process results
+        print(f"\n=== Discovery Complete ===")
+        print(f"Found {len(app.found_devices)} devices")
+        print(f"Collected {len(app.all_points)} points")
+
+        # Save to database
+        save_to_database(job_id, app.found_devices, app.all_points, conn)
+
+        # Close application
+        app.close()
+
+    finally:
+        # Always remove lock file, even on error
+        if lock_file.exists():
+            lock_file.unlink()
+            print("🔓 Discovery lock removed - mqtt_publisher will restart")
 
 
 def save_to_database(job_id: str, devices: List[Tuple[str, int]], points: List[Dict], conn):

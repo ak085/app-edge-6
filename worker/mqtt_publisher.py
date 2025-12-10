@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 # Global flag for graceful shutdown
 shutdown_requested = False
 
+# Discovery coordination lock file
+DISCOVERY_LOCK_FILE = "/tmp/bacnet_discovery_active"
+
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully"""
     global shutdown_requested
@@ -1155,6 +1158,27 @@ class MqttPublisher:
         # Main loop - check every 5 seconds for points that need polling
         while not shutdown_requested:
             try:
+                # Check for discovery lock file (coordination with discovery.py)
+                if os.path.exists(DISCOVERY_LOCK_FILE):
+                    # Discovery is running - shutdown BACnet app to release port
+                    if self.bacnet_app:
+                        logger.info("🔒 Discovery lock detected - shutting down BACnet application...")
+                        self.bacnet_app = None
+                        logger.info("✅ BACnet application shutdown - port 47808 released for discovery")
+
+                    # Wait for discovery to complete (check again in 1 second)
+                    await asyncio.sleep(1)
+                    continue  # Skip polling while discovery is active
+
+                # If BACnet app was shutdown and lock is gone, reinitialize it
+                if not self.bacnet_app:
+                    logger.info("🔄 Discovery complete - reinitializing BACnet application...")
+                    if not self.initialize_bacnet():
+                        logger.error("❌ Failed to reinitialize BACnet application")
+                        await asyncio.sleep(5)
+                        continue
+                    logger.info("✅ BACnet application restarted - resuming normal polling")
+
                 # Try to reconnect to MQTT if disconnected
                 if not self.mqtt_connected:
                     self.reconnect_mqtt()
