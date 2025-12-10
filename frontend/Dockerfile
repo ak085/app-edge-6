@@ -19,5 +19,6 @@ RUN npm run build
 # Expose port
 EXPOSE 3000
 
-# Start script (migrations then production server)
-CMD npx prisma migrate deploy && npm start
+# Start script (migrations, seeding, then production server)
+# Seeding is idempotent - safe to run on every startup
+CMD npx prisma migrate deploy && npx prisma db seed && npm start
