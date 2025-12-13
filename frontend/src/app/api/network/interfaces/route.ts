@@ -44,15 +44,17 @@ export async function GET() {
           const address = ipMatch[1];
           const cidr = `/${ipMatch[2]}`;
 
-          // Filter out docker bridge IPs (172.17.x.x - 172.31.x.x)
-          const isDockerBridge = address.startsWith("172.") &&
-                                  parseInt(address.split(".")[1]) >= 17 &&
-                                  parseInt(address.split(".")[1]) <= 31;
+          // Only add if not already in list (duplicates)
+          if (!interfaces.some((iface) => iface.address === address)) {
+            // Mark docker bridge IPs for user awareness
+            const isDockerBridge = address.startsWith("172.") &&
+                                    parseInt(address.split(".")[1]) >= 17 &&
+                                    parseInt(address.split(".")[1]) <= 31;
 
-          // Only add if not already in list and not docker bridge
-          if (!interfaces.some((iface) => iface.address === address) && !isDockerBridge) {
             interfaces.push({
-              name: `${currentInterface} (detected)`,
+              name: isDockerBridge
+                ? `${currentInterface} (docker bridge - usually not correct)`
+                : `${currentInterface} (detected)`,
               address,
               cidr,
             });

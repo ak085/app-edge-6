@@ -132,56 +132,58 @@ export default function SetupWizard({ isOpen, onComplete }: SetupWizardProps) {
                   <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
                   <span className="ml-2 text-sm">Detecting network interfaces...</span>
                 </div>
-              ) : interfaces.length === 0 ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-red-900">No interfaces detected</p>
-                      <p className="text-sm text-red-700 mt-1">
-                        Unable to detect network interfaces. Please check your LXC container features
-                        (nesting=1, keyctl=1) and Docker host networking configuration.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={fetchInterfaces}
-                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                  >
-                    Retry Detection
-                  </button>
-                </div>
               ) : (
-                <div className="space-y-2">
-                  {interfaces.map((iface) => (
-                    <label
-                      key={iface.address}
-                      className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        selectedBacnetIp === iface.address
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-border hover:border-blue-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="bacnet-ip"
-                        value={iface.address}
-                        checked={selectedBacnetIp === iface.address}
-                        onChange={(e) => setSelectedBacnetIp(e.target.value)}
-                        className="w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">{iface.address}{iface.cidr}</div>
-                        <div className="text-sm text-muted-foreground">{iface.name}</div>
-                      </div>
-                      {iface.name.includes('(detected)') && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Recommended
-                        </span>
-                      )}
+                <>
+                  {interfaces.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {interfaces.map((iface) => (
+                        <label
+                          key={iface.address}
+                          className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                            selectedBacnetIp === iface.address
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-border hover:border-blue-300"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="bacnet-ip"
+                            value={iface.address}
+                            checked={selectedBacnetIp === iface.address}
+                            onChange={(e) => setSelectedBacnetIp(e.target.value)}
+                            className="w-4 h-4"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{iface.address}{iface.cidr}</div>
+                            <div className="text-sm text-muted-foreground">{iface.name}</div>
+                          </div>
+                          {iface.name.includes('(detected)') && !iface.address.startsWith('172.') && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                              Recommended
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Manual IP Entry */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">
+                      {interfaces.length === 0 ? 'Enter BACnet IP Address' : 'Or enter manually:'}
                     </label>
-                  ))}
-                </div>
+                    <input
+                      type="text"
+                      placeholder="e.g., 192.168.1.51 or 10.0.10.20"
+                      value={selectedBacnetIp}
+                      onChange={(e) => setSelectedBacnetIp(e.target.value)}
+                      className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter your LXC container&apos;s IP address (not the docker bridge IP)
+                    </p>
+                  </div>
+                </>
               )}
 
               <div className="flex justify-end gap-2 mt-6">
