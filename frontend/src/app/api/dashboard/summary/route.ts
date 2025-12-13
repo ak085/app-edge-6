@@ -130,10 +130,14 @@ export async function GET() {
       systemStatus = 'operational'; // All good
     }
 
+    // Check if first-run setup is needed
+    const needsSetup = !systemSettings?.bacnetIp;
+
     // Build response
     return NextResponse.json({
       success: true,
       data: {
+        needsSetup,
         systemStatus,
         lastUpdate: lastUpdate?.toISOString(),
         secondsSinceUpdate,

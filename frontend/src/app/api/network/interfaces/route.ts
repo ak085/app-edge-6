@@ -18,8 +18,8 @@ export async function GET() {
 
     const interfaces: NetworkInterface[] = [];
 
-    if (settings) {
-      // Add configured BACnet IP from database
+    if (settings?.bacnetIp) {
+      // Add configured BACnet IP from database (only if not null)
       interfaces.push({
         name: "BACnet Network (configured)",
         address: settings.bacnetIp,
@@ -44,8 +44,13 @@ export async function GET() {
           const address = ipMatch[1];
           const cidr = `/${ipMatch[2]}`;
 
-          // Only add if not already in list (avoid duplicates)
-          if (!interfaces.some((iface) => iface.address === address)) {
+          // Filter out docker bridge IPs (172.17.x.x - 172.31.x.x)
+          const isDockerBridge = address.startsWith("172.") &&
+                                  parseInt(address.split(".")[1]) >= 17 &&
+                                  parseInt(address.split(".")[1]) <= 31;
+
+          // Only add if not already in list and not docker bridge
+          if (!interfaces.some((iface) => iface.address === address) && !isDockerBridge) {
             interfaces.push({
               name: `${currentInterface} (detected)`,
               address,

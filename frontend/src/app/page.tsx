@@ -8,8 +8,10 @@ import {
   CheckCircle2, AlertTriangle, XCircle, RefreshCw,
   Search, List
 } from 'lucide-react'
+import SetupWizard from '@/components/SetupWizard'
 
 interface DashboardData {
+  needsSetup: boolean
   systemStatus: 'operational' | 'degraded' | 'error'
   lastUpdate: string | null
   secondsSinceUpdate: number | null
@@ -67,6 +69,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [showSetupWizard, setShowSetupWizard] = useState(false)
 
   const fetchData = async (isManualRefresh = false, signal?: AbortSignal) => {
     try {
@@ -80,6 +83,10 @@ export default function DashboardPage() {
       if (result.success) {
         setData(result.data)
         setError(null)
+        // Check if first-run setup is needed
+        if (result.data.needsSetup) {
+          setShowSetupWizard(true)
+        }
       } else {
         setError(result.error || 'Unknown error')
       }
@@ -99,6 +106,12 @@ export default function DashboardPage() {
 
   const handleManualRefresh = () => {
     fetchData(true)
+  }
+
+  const handleSetupComplete = () => {
+    setShowSetupWizard(false)
+    setLoading(true)
+    fetchData()
   }
 
   useEffect(() => {
@@ -499,6 +512,12 @@ export default function DashboardPage() {
           </Link>
         </div>
       </main>
+
+      {/* Setup Wizard Modal */}
+      <SetupWizard
+        isOpen={showSetupWizard}
+        onComplete={handleSetupComplete}
+      />
     </div>
   )
 }

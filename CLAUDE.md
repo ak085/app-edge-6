@@ -1,10 +1,11 @@
 # BacPipes - BACnet Discovery & MQTT Publishing Platform
 
-## Current Status (2025-12-08)
+## Current Status (2025-12-13)
 
 **Production Ready**: Portable full-stack Docker Compose application for BACnet point discovery, configuration, and MQTT publishing with database-driven configuration.
 
 **Completed Features**:
+- ✅ **Automatic Setup Wizard** - First-run guided configuration (zero-touch deployment)
 - ✅ BACnet device/point discovery with web UI
 - ✅ Haystack tagging system (8-field semantic naming)
 - ✅ MQTT publishing to external broker (modular architecture)
@@ -323,6 +324,97 @@ BacPipes/
 ```
 
 ## Recent Updates
+
+### 2025-12-13: Automatic Setup Wizard for Fresh Deployments
+
+**New Feature: First-Run Setup Wizard**
+- **Problem Solved**: Fresh deployments always failed - discovery not working, MQTT not connected, even after changing IPs in GUI
+- **Root Cause**: Database seeding used hardcoded placeholder IPs that didn't match actual deployment environment
+- **Solution**: Mandatory first-run setup wizard with automatic configuration detection
+
+**Changes Implemented:**
+
+1. **Database Schema Changes** (`frontend/prisma/schema.prisma`):
+   - Made `MqttConfig.broker` nullable (String → String?)
+   - Made `SystemSettings.bacnetIp` nullable (String → String?)
+   - Fresh deployments now seed with NULL values, forcing setup wizard
+
+2. **Setup Wizard UI Component** (`frontend/src/components/SetupWizard.tsx`):
+   - Two-step wizard: Network Interface Selection → MQTT Broker Configuration
+   - Auto-detects available network interfaces via `/api/network/interfaces`
+   - Filters out docker bridge IPs (172.17.x.x - 172.31.x.x)
+   - Shows recommended interfaces (host IPs)
+   - Allows MQTT configuration (or skip if no broker yet)
+   - Saves to database and triggers automatic worker startup
+
+3. **Network Interface Detection API** (`frontend/src/app/api/network/interfaces/route.ts`):
+   - Detects all IPv4 interfaces using `ip -4 addr show`
+   - Excludes loopback (lo) and docker bridge IPs
+   - Returns interface name, IP address, and CIDR notation
+   - Graceful fallback if detection fails
+
+4. **Dashboard Integration** (`frontend/src/app/page.tsx`):
+   - Checks `needsSetup` flag from dashboard API
+   - Shows blocking setup wizard modal on first run
+   - Refreshes dashboard after setup completion
+   - Wizard only appears once (when bacnetIp is NULL)
+
+5. **Dashboard API Enhancement** (`frontend/src/app/api/dashboard/summary/route.ts`):
+   - Added `needsSetup` boolean flag (true if SystemSettings.bacnetIp is NULL)
+   - Frontend uses this to trigger setup wizard
+
+6. **Worker Waiting Logic** (`worker/mqtt_publisher.py`):
+   - Modified `load_bacnet_config()` to return False if bacnetIp is NULL
+   - Worker enters waiting loop, polling database every 10 seconds
+   - Clear log messages guide user to setup wizard URL
+   - Automatically starts within 10 seconds after configuration saved
+   - No manual restart required!
+
+7. **Database Migration** (`frontend/prisma/migrations/20251213021500_make_network_config_nullable/`):
+   - Drops defaults from broker and bacnetIp columns
+   - Makes both columns nullable
+   - Ensures fresh deployments require configuration
+
+8. **Updated Documentation**:
+   - README.md: New "Automatic Setup Wizard" workflow section
+   - README.md: Updated LXC deployment guide with wizard steps
+   - README.md: Updated troubleshooting for wizard-related issues
+   - CLAUDE.md: This entry
+
+**User Experience:**
+```
+1. Deploy: docker compose up -d
+2. Access UI: http://192.168.1.51:3001
+3. Wizard appears automatically
+4. Step 1: Select 192.168.1.51 (eth0) - Recommended
+5. Step 2: Enter MQTT broker 10.0.60.3
+6. Click "Complete Setup"
+7. Worker starts within 10 seconds
+8. Run discovery - everything works!
+
+Total time: 2 minutes
+```
+
+**Benefits:**
+- ✅ No more failed fresh deployments
+- ✅ No manual .env editing required
+- ✅ No guessing which IP to use (auto-detected)
+- ✅ No manual worker restarts (automatic detection)
+- ✅ Clear, guided configuration process
+- ✅ Prevents docker bridge IP mistakes (172.x.x.x)
+
+**Files Modified:**
+- `frontend/prisma/schema.prisma` (lines 112, 218)
+- `frontend/prisma/seed.ts` (lines 13, 29)
+- `frontend/src/components/SetupWizard.tsx` (new file, 304 lines)
+- `frontend/src/app/api/network/interfaces/route.ts` (lines 21-28, 47-60)
+- `frontend/src/app/api/dashboard/summary/route.ts` (lines 133-140)
+- `frontend/src/app/page.tsx` (lines 11, 14, 72, 86-89, 111-115, 516-520)
+- `worker/mqtt_publisher.py` (lines 252-299, 1143-1157)
+- `README.md` (lines 68-98, 141-205)
+- `CLAUDE.md` (this entry)
+
+---
 
 ### 2025-12-12: Discovery Lock Coordination Timing Fix
 

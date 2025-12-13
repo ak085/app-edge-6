@@ -67,26 +67,35 @@ docker compose -f docker-compose-monitoring.yml up -d
 
 ### First-Time Workflow
 
-1. **Configure Settings** → http://localhost:3001/settings
-   - BACnet IP: Auto-detected (or set manually if needed)
-   - MQTT Broker IP: Configure your external broker
-   - Save settings
-   - **Restart worker:** `docker compose restart bacnet-worker`
+**Automatic Setup Wizard** (fresh deployments):
 
-2. **Discover Devices** → http://localhost:3001/discovery
+1. **Access Dashboard** → http://localhost:3001
+   - On first run, setup wizard appears automatically
+   - No manual configuration needed!
+
+2. **Complete Setup Wizard**:
+   - **Step 1**: Select your BACnet network interface
+     - System auto-detects available IPs
+     - Choose your LXC host IP (avoid docker bridge IPs like 172.x.x.x)
+   - **Step 2**: Enter MQTT broker IP address
+     - Example: 10.0.60.3 or 192.168.1.100
+     - Leave empty if you don't have one yet (configure later in Settings)
+   - Click "Complete Setup"
+   - Worker starts automatically within 10 seconds!
+
+3. **Discover Devices** → http://localhost:3001/discovery
    - Click "Start Discovery"
    - Save discovered devices
 
-3. **Tag Points** → http://localhost:3001/points
+4. **Tag Points** → http://localhost:3001/points
    - Select points → Add Haystack tags
    - Enable "Publish to MQTT"
    - Set poll intervals
 
-4. **Monitor Data** → http://localhost:3001/monitoring
+5. **Monitor Data** → http://localhost:3001/monitoring
    - Real-time MQTT stream
-   - Dashboard: http://localhost:3003
 
-**Note:** All configuration is stored in database and managed via Settings GUI. The `.env` file is optional and only needed for database connection settings.
+**Note:** Setup wizard only appears on fresh deployments. After initial setup, use Settings page to modify configuration.
 
 ---
 
@@ -129,53 +138,71 @@ docker compose ps
 # http://<your-container-ip>:3001
 ```
 
-### First-Time Configuration
+### First-Time Setup (Automatic)
 
-**Important**: Default IPs in database are placeholders. Configure actual network via Settings GUI:
+**Setup Wizard** - Guided configuration on first deployment:
 
-1. **Open Settings** → http://<your-container-ip>:3001/settings
+1. **Access Dashboard** → http://<your-container-ip>:3001
+   - Setup wizard appears automatically on fresh deployment
+   - No manual `.env` editing required!
 
-2. **Configure BACnet**:
-   - BACnet IP: Enter your container's IP on BACnet network (auto-detected, verify it's correct)
-   - BACnet Port: 47808 (standard, rarely needs changing)
-   - BACnet Device ID: 3001234 (change if conflicts with existing devices)
+2. **Setup Wizard - Step 1: BACnet Network**
+   - System auto-detects available network interfaces
+   - Select your LXC container IP (e.g., 192.168.1.51)
+   - **Avoid** docker bridge IPs (172.17.x.x - 172.31.x.x)
+   - Click "Next: MQTT Configuration"
 
-3. **Configure MQTT**:
-   - MQTT Broker: Enter your MQTT broker IP (e.g., 10.0.60.3, 192.168.1.100)
-   - MQTT Port: 1883 (standard)
+3. **Setup Wizard - Step 2: MQTT Broker**
+   - Enter your MQTT broker IP address (e.g., 10.0.60.3)
+   - Leave empty if you don't have a broker yet (configure later)
+   - Click "Complete Setup"
 
-4. **Click "Save Settings"**
+4. **Automatic Worker Startup**
+   - Configuration saves to database
+   - Worker detects configuration within 10 seconds
+   - **No manual restart needed!**
 
-5. **Restart Worker**:
-   ```bash
-   docker compose restart bacnet-worker
-   ```
-
-6. **Verify Dashboard**:
-   - Navigate to http://<your-container-ip>:3001
-   - MQTT status should show 🟢 Connected
+5. **Verify Dashboard**:
+   - Dashboard refreshes automatically
+   - MQTT status should show 🟢 Connected (if broker configured)
    - System status should show "Operational"
 
-7. **Run Discovery**:
+6. **Run Discovery**:
    - Navigate to Discovery page
    - Click "Start Discovery"
    - BACnet devices will appear in table
 
+**Total Time**: 2-3 minutes from clone to discovery
+
 ### Troubleshooting Fresh Deployments
 
-**Discovery finds 0 devices**:
+**Setup wizard doesn't appear**:
+- Check logs: `docker compose logs frontend`
+- Verify database seeded properly: `docker compose logs frontend | grep "Seeding"`
+- If needed, restart frontend: `docker compose restart frontend`
+
+**Setup wizard shows "No interfaces detected"**:
 - Verify LXC features enabled: `cat /etc/pve/lxc/<CTID>.conf | grep features`
-- Check BACnet IP is correct in Settings (must be on same network as devices)
+- Required: `features: nesting=1,keyctl=1`
+- Restart container: `pct reboot <CTID>`
+
+**Worker stuck on "Waiting for configuration"**:
+- Check worker logs: `docker compose logs bacnet-worker`
+- Should show: "⏸️ BACnet IP not configured - waiting for first-time setup"
+- Complete setup wizard in browser at http://<your-ip>:3001
+- Worker will detect configuration within 10 seconds
+
+**Discovery finds 0 devices**:
+- Verify BACnet IP selected correctly in setup wizard (not docker bridge IP)
+- Check BACnet IP is on same network as devices
 - Verify firewall allows UDP port 47808
+- Test from container: `docker exec -it bacpipes-worker ping <device-ip>`
 
 **MQTT shows Disconnected 🔴**:
-- Verify MQTT broker IP is correct in Settings
-- Test broker connectivity: `ping <broker-ip>` (from inside container)
+- Verify MQTT broker IP entered correctly in setup wizard
+- Test broker connectivity: `docker exec -it bacpipes-worker ping <broker-ip>`
 - Check broker allows connections (firewall, authentication)
-
-**Worker fails to start**:
-- Check logs: `docker compose logs bacnet-worker`
-- Verify database is healthy: `docker compose ps postgres`
+- Can configure MQTT later in Settings if skipped during setup
 
 ---
 

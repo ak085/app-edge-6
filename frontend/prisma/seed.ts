@@ -10,7 +10,7 @@ async function main() {
     where: { id: 1 },
     update: {},
     create: {
-      broker: process.env.MQTT_BROKER || '10.0.60.50',
+      broker: process.env.MQTT_BROKER || null,  // NULL - requires setup wizard
       port: parseInt(process.env.MQTT_PORT || '1883'),
       clientId: process.env.MQTT_CLIENT_ID || 'bacpipes_worker',
       keepAlive: 30,
@@ -26,7 +26,7 @@ async function main() {
     where: { id: 1 },
     update: {},
     create: {
-      bacnetIp: process.env.BACNET_IP || '192.168.1.35',
+      bacnetIp: process.env.BACNET_IP || null,  // NULL - requires setup wizard
       bacnetPort: parseInt(process.env.BACNET_PORT || '47808'),
       bacnetDeviceId: parseInt(process.env.BACNET_DEVICE_ID || '3001234'),
       discoveryTimeout: 15,

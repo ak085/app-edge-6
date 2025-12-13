@@ -109,7 +109,7 @@ model MqttConfig {
   id                Int       @id @default(autoincrement())
 
   // Connection
-  broker            String    @default("10.0.60.3")
+  broker            String?   // Nullable - configured via setup wizard
   port              Int       @default(1883)
   clientId          String    @default("bacpipes_worker")
   username          String?
@@ -215,7 +215,7 @@ model SystemSettings {
   id                    Int       @id @default(autoincrement())
 
   // Network
-  bacnetIp              String    @default("192.168.1.35")
+  bacnetIp              String?   // Nullable - configured via setup wizard
   bacnetPort            Int       @default(47808)
   bacnetDeviceId        Int       @default(3001234)
   discoveryTimeout      Int       @default(15)      // Seconds

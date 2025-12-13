@@ -250,7 +250,12 @@ class MqttPublisher:
             return None
 
     def load_bacnet_config(self):
-        """Load BACnet configuration from database SystemSettings"""
+        """Load BACnet configuration from database SystemSettings
+
+        Returns:
+            True if configuration is complete and ready
+            False if waiting for first-time setup (bacnetIp is NULL)
+        """
         try:
             cursor = self.db_conn.cursor()
             cursor.execute('SELECT "bacnetIp", "bacnetPort", "bacnetDeviceId" FROM "SystemSettings" LIMIT 1')
@@ -258,26 +263,24 @@ class MqttPublisher:
             cursor.close()
 
             if result:
-                # Override with database settings (Settings GUI is source of truth)
                 db_ip = result['bacnetIp']
                 db_port = result['bacnetPort']
                 db_device_id = result['bacnetDeviceId']
 
-                # Use database IP if provided and valid
+                # Check if first-run setup is needed (bacnetIp is NULL)
+                if db_ip is None:
+                    logger.warning("⏸️  BACnet IP not configured - waiting for first-time setup")
+                    logger.info("   👉 Complete setup wizard at: http://your-ip:3001")
+                    logger.info("   ⏳ Worker will start automatically after configuration")
+                    return False
+
+                # Use configured IP from database
                 if db_ip and db_ip.strip():
                     self.bacnet_ip = db_ip
                     logger.info(f"📋 BACnet IP from database: {self.bacnet_ip}")
                 else:
-                    # Auto-detect if not configured
-                    detected_ip = self._auto_detect_local_ip()
-                    if detected_ip:
-                        self.bacnet_ip = detected_ip
-                        logger.info(f"🔍 BACnet IP auto-detected: {self.bacnet_ip}")
-                        logger.info(f"   💡 If incorrect, configure via Settings GUI at http://your-ip:3001/settings")
-                    elif self.bacnet_ip:
-                        logger.warning(f"⚠️  Using BACnet IP from environment: {self.bacnet_ip}")
-                        logger.info(f"   💡 To change, configure via Settings GUI")
-                    # else: keep environment default
+                    logger.warning("⚠️  BACnet IP empty - waiting for configuration")
+                    return False
 
                 self.bacnet_port = db_port if db_port else self.bacnet_port
                 self.bacnet_device_id = db_device_id if db_device_id else self.bacnet_device_id
@@ -285,26 +288,14 @@ class MqttPublisher:
                 logger.info(f"📋 BACnet Configuration:")
                 logger.info(f"   - Interface: {self.bacnet_ip}:{self.bacnet_port}")
                 logger.info(f"   - Device ID: {self.bacnet_device_id}")
+                return True
             else:
-                logger.warning("⚠️  No BACnet config found in database, using environment defaults")
-                # Try auto-detection as fallback
-                detected_ip = self._auto_detect_local_ip()
-                if detected_ip and detected_ip != self.bacnet_ip:
-                    logger.info(f"🔍 Auto-detected BACnet IP: {detected_ip} (overriding env: {self.bacnet_ip})")
-                    self.bacnet_ip = detected_ip
+                logger.warning("⏸️  No system settings found - waiting for first-time setup")
+                logger.info("   👉 Complete setup wizard at: http://your-ip:3001")
+                return False
 
-            return True
         except Exception as e:
             logger.error(f"❌ Failed to load BACnet config: {e}")
-            logger.warning("⚠️  Using environment defaults")
-            # Try auto-detection as last resort
-            try:
-                detected_ip = self._auto_detect_local_ip()
-                if detected_ip:
-                    logger.info(f"🔍 Auto-detected BACnet IP: {detected_ip}")
-                    self.bacnet_ip = detected_ip
-            except Exception:
-                pass
             return False
 
     def connect_mqtt(self):
@@ -1149,8 +1140,21 @@ class MqttPublisher:
         # Load MQTT configuration from database
         self.load_mqtt_config()
 
-        # Load BACnet configuration from database
-        self.load_bacnet_config()
+        # Wait for BACnet configuration (first-time setup)
+        logger.info("🔍 Checking BACnet configuration...")
+        config_ready = self.load_bacnet_config()
+
+        while not config_ready and not shutdown_requested:
+            logger.info("⏳ Waiting for configuration (checking again in 10 seconds)...")
+            await asyncio.sleep(10)
+            # Reload configuration from database
+            config_ready = self.load_bacnet_config()
+
+        if shutdown_requested:
+            logger.info("Shutdown requested during configuration wait")
+            return 0
+
+        logger.info("✅ Configuration loaded - starting worker...")
 
         if not self.connect_mqtt():
             logger.error("Cannot start without MQTT connection")
