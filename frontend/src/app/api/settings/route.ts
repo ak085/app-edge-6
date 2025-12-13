@@ -23,12 +23,27 @@ export async function GET() {
 
     // Combine into single response
     const settings = {
+      // BACnet settings
       bacnetIp: systemSettings.bacnetIp,
       bacnetPort: systemSettings.bacnetPort,
-      mqttBroker: mqttConfig.broker,
-      mqttPort: mqttConfig.port,
       timezone: systemSettings.timezone,
       defaultPollInterval: systemSettings.defaultPollInterval,
+      // MQTT Connection
+      mqttBroker: mqttConfig.broker,
+      mqttPort: mqttConfig.port,
+      // MQTT Authentication
+      mqttUsername: mqttConfig.username,
+      mqttPassword: mqttConfig.password,
+      // MQTT TLS/Security
+      mqttTlsEnabled: mqttConfig.tlsEnabled,
+      mqttTlsInsecure: mqttConfig.tlsInsecure,
+      mqttCaCertPath: mqttConfig.caCertPath,
+      mqttClientCertPath: mqttConfig.clientCertPath,
+      mqttClientKeyPath: mqttConfig.clientKeyPath,
+      // MQTT Subscription (for setpoint overrides)
+      mqttSubscribeEnabled: mqttConfig.subscribeEnabled,
+      mqttSubscribeTopicPattern: mqttConfig.subscribeTopicPattern,
+      mqttSubscribeQos: mqttConfig.subscribeQos,
     };
 
     return NextResponse.json({
@@ -85,8 +100,22 @@ export async function PUT(request: Request) {
       await prisma.mqttConfig.update({
         where: { id: mqttConfig.id },
         data: {
+          // Connection
           broker: body.mqttBroker ?? null,
-          port: body.mqttPort,
+          port: body.mqttPort ?? mqttConfig.port,
+          // Authentication
+          username: body.mqttUsername !== undefined ? (body.mqttUsername || null) : mqttConfig.username,
+          password: body.mqttPassword !== undefined ? (body.mqttPassword || null) : mqttConfig.password,
+          // TLS/Security
+          tlsEnabled: body.mqttTlsEnabled !== undefined ? body.mqttTlsEnabled : mqttConfig.tlsEnabled,
+          tlsInsecure: body.mqttTlsInsecure !== undefined ? body.mqttTlsInsecure : mqttConfig.tlsInsecure,
+          caCertPath: body.mqttCaCertPath !== undefined ? (body.mqttCaCertPath || null) : mqttConfig.caCertPath,
+          clientCertPath: body.mqttClientCertPath !== undefined ? (body.mqttClientCertPath || null) : mqttConfig.clientCertPath,
+          clientKeyPath: body.mqttClientKeyPath !== undefined ? (body.mqttClientKeyPath || null) : mqttConfig.clientKeyPath,
+          // Subscription
+          subscribeEnabled: body.mqttSubscribeEnabled !== undefined ? body.mqttSubscribeEnabled : mqttConfig.subscribeEnabled,
+          subscribeTopicPattern: body.mqttSubscribeTopicPattern !== undefined ? body.mqttSubscribeTopicPattern : mqttConfig.subscribeTopicPattern,
+          subscribeQos: body.mqttSubscribeQos !== undefined ? body.mqttSubscribeQos : mqttConfig.subscribeQos,
         },
       });
     } else {
@@ -96,6 +125,13 @@ export async function PUT(request: Request) {
           broker: body.mqttBroker ?? null,
           port: body.mqttPort ?? 1883,
           clientId: "bacpipes_worker",
+          username: body.mqttUsername || null,
+          password: body.mqttPassword || null,
+          tlsEnabled: body.mqttTlsEnabled ?? false,
+          tlsInsecure: body.mqttTlsInsecure ?? false,
+          subscribeEnabled: body.mqttSubscribeEnabled ?? false,
+          subscribeTopicPattern: body.mqttSubscribeTopicPattern ?? "bacnet/override/#",
+          subscribeQos: body.mqttSubscribeQos ?? 1,
         },
       });
     }

@@ -73,6 +73,9 @@ services:
       TIMESCALEDB_PASSWORD: ${TIMESCALEDB_PASSWORD:-}
     ports:
       - "3001:3001"
+    volumes:
+      # MQTT TLS certificates (shared with worker)
+      - mqtt_certs:/app/certs
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/dashboard/summary', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
       interval: 10s
@@ -151,6 +154,9 @@ services:
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       # System
       TZ: ${TZ:-Asia/Kuala_Lumpur}
+    volumes:
+      # MQTT TLS certificates (shared with frontend)
+      - mqtt_certs:/app/certs:ro
     restart: unless-stopped
 
 networks:
@@ -161,4 +167,6 @@ volumes:
   postgres_data:
     driver: local
   timescaledb_data:
+    driver: local
+  mqtt_certs:
     driver: local

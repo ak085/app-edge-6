@@ -116,9 +116,21 @@ model MqttConfig {
   password          String?
   keepAlive         Int       @default(30)      // Seconds
 
+  // TLS/Security
+  tlsEnabled        Boolean   @default(false)
+  tlsInsecure       Boolean   @default(false)   // Skip certificate verification
+  caCertPath        String?   // Path to CA certificate file
+  clientCertPath    String?   // Path to client certificate file
+  clientKeyPath     String?   // Path to client private key file
+
   // Topics
   writeCommandTopic String    @default("bacnet/write/command")
   writeResultTopic  String    @default("bacnet/write/result")
+
+  // Subscription (for setpoint overrides from ML server)
+  subscribeEnabled      Boolean   @default(false)
+  subscribeTopicPattern String    @default("bacnet/override/#")
+  subscribeQos          Int       @default(1)
 
   // Status
   enabled           Boolean   @default(true)

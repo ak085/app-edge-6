@@ -518,6 +518,12 @@ export default function MonitoringPage() {
             >
               Last 7 Days
             </button>
+            <button
+              onClick={() => setQuickPreset(720)}
+              className="px-3 py-1 text-sm rounded-md bg-gray-100 hover:bg-gray-200 border border-gray-300"
+            >
+              Last 30 Days
+            </button>
           </div>
         </div>
 

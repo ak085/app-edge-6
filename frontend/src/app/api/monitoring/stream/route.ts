@@ -58,12 +58,22 @@ export async function GET(request: NextRequest) {
       const brokerUrl = `mqtt://${broker}:${port}`;
 
       try {
-        mqttClient = mqtt.connect(brokerUrl, {
+        // Build connection options
+        const connectOptions: mqtt.IClientOptions = {
           clientId,
           clean: true,
           reconnectPeriod: 5000,
           connectTimeout: 30000,
-        });
+        };
+
+        // Add authentication if configured
+        if (mqttConfig.username) {
+          connectOptions.username = mqttConfig.username;
+          connectOptions.password = mqttConfig.password || undefined;
+          console.log(`[SSE] Using MQTT authentication (user: ${mqttConfig.username})`);
+        }
+
+        mqttClient = mqtt.connect(brokerUrl, connectOptions);
 
         // Store connection for cleanup
         activeConnections.set(clientId, mqttClient);

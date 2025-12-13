@@ -16,6 +16,7 @@ import logging
 import asyncio
 import struct
 import math
+import hashlib
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from collections import defaultdict
@@ -206,7 +207,12 @@ class MqttPublisher:
         """
         try:
             cursor = self.db_conn.cursor()
-            cursor.execute('SELECT broker, port, "clientId" FROM "MqttConfig" LIMIT 1')
+            cursor.execute('''
+                SELECT broker, port, "clientId", username, password,
+                       "tlsEnabled", "tlsInsecure", "caCertPath", "clientCertPath", "clientKeyPath",
+                       "subscribeEnabled", "subscribeTopicPattern", "subscribeQos"
+                FROM "MqttConfig" LIMIT 1
+            ''')
             result = cursor.fetchone()
             cursor.close()
 
@@ -226,9 +232,33 @@ class MqttPublisher:
                     self.mqtt_port = result['port']
                     self.mqtt_client_id = result['clientId'] or self.mqtt_client_id
 
+                    # Authentication
+                    self.mqtt_username = result['username']
+                    self.mqtt_password = result['password']
+
+                    # TLS Configuration
+                    self.mqtt_tls_enabled = result['tlsEnabled'] or False
+                    self.mqtt_tls_insecure = result['tlsInsecure'] or False
+                    self.mqtt_ca_cert_path = result['caCertPath']
+                    self.mqtt_client_cert_path = result['clientCertPath']
+                    self.mqtt_client_key_path = result['clientKeyPath']
+
+                    # Subscription Configuration
+                    self.mqtt_subscribe_enabled = result['subscribeEnabled'] or False
+                    self.mqtt_subscribe_topic_pattern = result['subscribeTopicPattern'] or 'bacnet/override/#'
+                    self.mqtt_subscribe_qos = result['subscribeQos'] if result['subscribeQos'] is not None else 1
+
                     logger.info(f"📋 MQTT Configuration:")
                     logger.info(f"   - Broker: {self.mqtt_broker}:{self.mqtt_port}")
                     logger.info(f"   - Client ID: {self.mqtt_client_id}")
+                    if self.mqtt_username:
+                        logger.info(f"   - Authentication: Enabled (user: {self.mqtt_username})")
+                    if self.mqtt_tls_enabled:
+                        logger.info(f"   - TLS: Enabled (insecure: {self.mqtt_tls_insecure})")
+                        if self.mqtt_ca_cert_path:
+                            logger.info(f"   - CA Cert: {self.mqtt_ca_cert_path}")
+                    if self.mqtt_subscribe_enabled:
+                        logger.info(f"   - Override Subscription: {self.mqtt_subscribe_topic_pattern} (QoS {self.mqtt_subscribe_qos})")
 
                     # Warn if using default placeholder IP
                     if self.mqtt_broker in ['10.0.60.3', '10.0.60.2', '192.168.1.35']:
@@ -246,6 +276,55 @@ class MqttPublisher:
             logger.error(f"❌ Failed to load MQTT config: {e}")
             logger.warning("⚠️  Using environment defaults")
             return False
+
+    def _get_config_hash(self):
+        """Generate hash of MQTT config for change detection"""
+        broker = getattr(self, 'mqtt_broker', '') or ''
+        port = getattr(self, 'mqtt_port', 1883)
+        username = getattr(self, 'mqtt_username', '') or ''
+        password = getattr(self, 'mqtt_password', '') or ''
+        tls_enabled = getattr(self, 'mqtt_tls_enabled', False)
+        ca_cert = getattr(self, 'mqtt_ca_cert_path', '') or ''
+        subscribe_enabled = getattr(self, 'mqtt_subscribe_enabled', False)
+        subscribe_pattern = getattr(self, 'mqtt_subscribe_topic_pattern', '') or ''
+
+        config_str = f"{broker}:{port}:{username}:{password}:{tls_enabled}:{ca_cert}:{subscribe_enabled}:{subscribe_pattern}"
+        return hashlib.md5(config_str.encode()).hexdigest()
+
+    def _check_config_changes(self):
+        """Check if MQTT config changed, trigger reconnect if needed
+
+        Called periodically (every 10 seconds) to detect credential/TLS changes
+        made via the Settings GUI and apply them without restart.
+        """
+        old_hash = getattr(self, '_config_hash', None)
+
+        # Reload config from database
+        self.load_mqtt_config()
+        new_hash = self._get_config_hash()
+
+        if old_hash and old_hash != new_hash:
+            logger.info("🔄 MQTT configuration changed via Settings GUI - reconnecting...")
+            self._force_reconnect()
+
+        self._config_hash = new_hash
+
+    def _force_reconnect(self):
+        """Force MQTT reconnection with new configuration"""
+        try:
+            if self.mqtt_client:
+                logger.info("🔌 Disconnecting from current MQTT broker...")
+                self.mqtt_client.loop_stop()
+                self.mqtt_client.disconnect()
+                self.mqtt_client = None
+                self.mqtt_connected = False
+        except Exception as e:
+            logger.warning(f"⚠️  Error during disconnect: {e}")
+            self.mqtt_connected = False
+
+        # Reconnect with new config
+        logger.info("🔌 Connecting with updated MQTT configuration...")
+        self.connect_mqtt()
 
     def _auto_detect_local_ip(self):
         """Auto-detect local IP address for BACnet interface"""
@@ -325,6 +404,38 @@ class MqttPublisher:
             self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
             self.mqtt_client.on_message = self.on_mqtt_message
 
+            # Apply authentication if configured
+            if hasattr(self, 'mqtt_username') and self.mqtt_username:
+                self.mqtt_client.username_pw_set(self.mqtt_username, self.mqtt_password or '')
+                logger.info(f"🔐 MQTT authentication configured (user: {self.mqtt_username})")
+
+            # Apply TLS if configured
+            if hasattr(self, 'mqtt_tls_enabled') and self.mqtt_tls_enabled:
+                import ssl
+                ca_cert = getattr(self, 'mqtt_ca_cert_path', None)
+                client_cert = getattr(self, 'mqtt_client_cert_path', None)
+                client_key = getattr(self, 'mqtt_client_key_path', None)
+                tls_insecure = getattr(self, 'mqtt_tls_insecure', False)
+
+                # Configure TLS
+                if ca_cert or client_cert:
+                    self.mqtt_client.tls_set(
+                        ca_certs=ca_cert,
+                        certfile=client_cert,
+                        keyfile=client_key,
+                        cert_reqs=ssl.CERT_NONE if tls_insecure else ssl.CERT_REQUIRED,
+                        tls_version=ssl.PROTOCOL_TLS
+                    )
+                    if tls_insecure:
+                        self.mqtt_client.tls_insecure_set(True)
+                        logger.warning(f"🔓 TLS configured with INSECURE mode (certificate verification disabled)")
+                    else:
+                        logger.info(f"🔒 TLS configured with certificate verification")
+                else:
+                    # TLS enabled but no certs - use default CA bundle
+                    self.mqtt_client.tls_set(cert_reqs=ssl.CERT_NONE if tls_insecure else ssl.CERT_REQUIRED)
+                    logger.info(f"🔒 TLS configured with system CA bundle")
+
             self.mqtt_client.connect(self.mqtt_broker, self.mqtt_port, 60)
             self.mqtt_client.loop_start()
 
@@ -355,6 +466,13 @@ class MqttPublisher:
             # Subscribe to write command topic
             client.subscribe("bacnet/write/command", qos=1)
             logger.info("📝 Subscribed to bacnet/write/command topic")
+
+            # Subscribe to override topic if enabled
+            if hasattr(self, 'mqtt_subscribe_enabled') and self.mqtt_subscribe_enabled:
+                topic_pattern = getattr(self, 'mqtt_subscribe_topic_pattern', 'bacnet/override/#')
+                qos = getattr(self, 'mqtt_subscribe_qos', 1)
+                client.subscribe(topic_pattern, qos=qos)
+                logger.info(f"📥 Subscribed to override topic: {topic_pattern} (QoS {qos})")
         else:
             logger.error(f"MQTT connection failed with code {rc}")
 
@@ -412,7 +530,7 @@ class MqttPublisher:
         return self.mqtt_connected
 
     def on_mqtt_message(self, client, userdata, msg):
-        """Handle incoming MQTT messages (write commands) - QUEUE BASED APPROACH"""
+        """Handle incoming MQTT messages (write commands and override values) - QUEUE BASED APPROACH"""
         try:
             if msg.topic == "bacnet/write/command":
                 # Parse write command
@@ -423,10 +541,94 @@ class MqttPublisher:
                 # The main polling loop will process this queue
                 self.pending_write_commands.append(command)
                 logger.info(f"📝 Write command queued for processing (queue size: {len(self.pending_write_commands)})")
+
+            elif msg.topic.startswith("bacnet/override/"):
+                # Handle setpoint override from ML/external system
+                self._handle_override_message(msg)
+
         except json.JSONDecodeError as e:
-            logger.error(f"❌ Invalid JSON in MQTT write command: {e}")
+            logger.error(f"❌ Invalid JSON in MQTT message: {e}")
         except Exception as e:
             logger.error(f"❌ Error processing MQTT message: {e}", exc_info=True)
+
+    def _handle_override_message(self, msg):
+        """Process setpoint override message from ML/external system
+
+        Override topic format: bacnet/override/{site}/{equip}/{equipId}/{func}/{qty}/{substance}/{location}
+        Corresponding publish topic: bacnet/{site}/{equip}/{equipId}/{func}/{qty}/{substance}/{location}
+        """
+        try:
+            payload = json.loads(msg.payload.decode())
+            value = payload.get('value')
+            priority = payload.get('priority', 8)
+            source = payload.get('source', 'mqtt_override')
+
+            if value is None:
+                logger.warning(f"⚠️  Override message missing 'value' field: {msg.topic}")
+                return
+
+            # Convert override topic to publish topic to find the point
+            # bacnet/override/klcc/ahu/12/sp/temp/air/supply -> bacnet/klcc/ahu/12/sp/temp/air/supply
+            publish_topic = msg.topic.replace('bacnet/override/', 'bacnet/', 1)
+
+            # Find point by MQTT topic
+            point = self._find_point_by_topic(publish_topic)
+            if not point:
+                logger.warning(f"⚠️  No point found for override topic: {msg.topic}")
+                return
+
+            # Verify it's a setpoint (position-4 in haystack name should be 'sp')
+            haystack_name = point.get('haystackPointName', '')
+            if haystack_name:
+                parts = haystack_name.split('.')
+                if len(parts) >= 4 and parts[3] != 'sp':
+                    logger.warning(f"⚠️  Override rejected: Point {haystack_name} is not a setpoint (position-4 = '{parts[3]}', expected 'sp')")
+                    return
+
+            logger.info(f"📥 Received override for {point['pointName']}: value={value}, priority={priority}, source={source}")
+
+            # Create write command and queue it
+            import uuid
+            write_command = {
+                'jobId': str(uuid.uuid4()),
+                'deviceId': point['deviceId'],
+                'deviceIp': point['ipAddress'],
+                'objectType': point['objectType'],
+                'objectInstance': point['objectInstance'],
+                'value': value,
+                'priority': priority,
+                'release': False,
+                'source': source,
+                'pointName': point['pointName'],
+                'originalTopic': msg.topic
+            }
+            self.pending_write_commands.append(write_command)
+            logger.info(f"📝 Override queued as write command (queue size: {len(self.pending_write_commands)})")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Invalid JSON in override message: {e}")
+        except Exception as e:
+            logger.error(f"❌ Error processing override message: {e}", exc_info=True)
+
+    def _find_point_by_topic(self, mqtt_topic: str) -> Optional[Dict]:
+        """Find point in database by MQTT topic"""
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute('''
+                SELECT p.id, p."pointName", p."objectType", p."objectInstance",
+                       p."haystackPointName", p."isWritable",
+                       d."deviceId", d."ipAddress", d.port
+                FROM "Point" p
+                JOIN "Device" d ON p."deviceId" = d.id
+                WHERE p."mqttTopic" = %s
+                LIMIT 1
+            ''', (mqtt_topic,))
+            result = cursor.fetchone()
+            cursor.close()
+            return dict(result) if result else None
+        except Exception as e:
+            logger.error(f"❌ Error finding point by topic: {e}")
+            return None
 
     async def execute_write_command(self, command: Dict):
         """Execute BACnet write command with comprehensive validation"""
@@ -1218,6 +1420,10 @@ class MqttPublisher:
             logger.error("Cannot start without MQTT connection")
             return 1
 
+        # Initialize config hash for hot-reload detection
+        self._config_hash = self._get_config_hash()
+        self._last_config_check = time.time()
+
         # Connect to TimescaleDB (optional - graceful degradation)
         self.connect_timescaledb()
 
@@ -1262,6 +1468,11 @@ class MqttPublisher:
                 # Try to reconnect to MQTT if disconnected
                 if not self.mqtt_connected:
                     self.reconnect_mqtt()
+
+                # Check for MQTT config changes every 10 seconds (hot-reload)
+                if time.time() - self._last_config_check >= 10:
+                    self._check_config_changes()
+                    self._last_config_check = time.time()
 
                 # Process any pending write commands from MQTT (queue-based approach)
                 await self.process_write_commands()
