@@ -7,27 +7,18 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET() {
   try {
-    // Get BACnet settings
-    let systemSettings = await prisma.systemSettings.findFirst();
-    if (!systemSettings) {
-      systemSettings = await prisma.systemSettings.create({
-        data: {
-          bacnetIp: "192.168.1.35",
-          bacnetPort: 47808,
-        },
-      });
-    }
+    // Get BACnet settings (created by database seeding)
+    const systemSettings = await prisma.systemSettings.findFirst();
 
-    // Get MQTT settings
-    let mqttConfig = await prisma.mqttConfig.findFirst();
-    if (!mqttConfig) {
-      mqttConfig = await prisma.mqttConfig.create({
-        data: {
-          broker: "10.0.60.3",
-          port: 1883,
-          clientId: "bacpipes_worker",
-        },
-      });
+    // Get MQTT settings (created by database seeding)
+    const mqttConfig = await prisma.mqttConfig.findFirst();
+
+    // Both should exist from seeding, but handle gracefully if not
+    if (!systemSettings || !mqttConfig) {
+      return NextResponse.json({
+        success: false,
+        error: "System not initialized - database seeding may have failed",
+      }, { status: 500 });
     }
 
     // Combine into single response
@@ -65,22 +56,23 @@ export async function PUT(request: Request) {
     const body = await request.json();
 
     // Update BACnet settings (SystemSettings table)
-    let systemSettings = await prisma.systemSettings.findFirst();
+    const systemSettings = await prisma.systemSettings.findFirst();
     if (systemSettings) {
       await prisma.systemSettings.update({
         where: { id: systemSettings.id },
         data: {
-          bacnetIp: body.bacnetIp,
+          bacnetIp: body.bacnetIp ?? null,
           bacnetPort: body.bacnetPort,
           timezone: body.timezone || systemSettings.timezone,
           defaultPollInterval: body.defaultPollInterval !== undefined ? body.defaultPollInterval : systemSettings.defaultPollInterval,
         },
       });
     } else {
+      // Should never happen (seeding creates this), but handle gracefully
       await prisma.systemSettings.create({
         data: {
-          bacnetIp: body.bacnetIp,
-          bacnetPort: body.bacnetPort,
+          bacnetIp: body.bacnetIp ?? null,
+          bacnetPort: body.bacnetPort ?? 47808,
           timezone: body.timezone || "Asia/Kuala_Lumpur",
           defaultPollInterval: body.defaultPollInterval || 60,
         },
@@ -88,20 +80,21 @@ export async function PUT(request: Request) {
     }
 
     // Update MQTT settings (MqttConfig table)
-    let mqttConfig = await prisma.mqttConfig.findFirst();
+    const mqttConfig = await prisma.mqttConfig.findFirst();
     if (mqttConfig) {
       await prisma.mqttConfig.update({
         where: { id: mqttConfig.id },
         data: {
-          broker: body.mqttBroker,
+          broker: body.mqttBroker ?? null,
           port: body.mqttPort,
         },
       });
     } else {
+      // Should never happen (seeding creates this), but handle gracefully
       await prisma.mqttConfig.create({
         data: {
-          broker: body.mqttBroker,
-          port: body.mqttPort,
+          broker: body.mqttBroker ?? null,
+          port: body.mqttPort ?? 1883,
           clientId: "bacpipes_worker",
         },
       });

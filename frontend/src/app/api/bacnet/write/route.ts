@@ -10,7 +10,12 @@ import { v4 as uuidv4 } from 'uuid';
  * External brokers (IP addresses) are used as configured
  * NOTE: BacPipes uses external MQTT broker architecture - localhost is not supported
  */
-function resolveBrokerForFrontend(dbBroker: string, dbPort: number): { broker: string; port: number } {
+function resolveBrokerForFrontend(dbBroker: string | null, dbPort: number): { broker: string; port: number } {
+  // Check if broker is configured
+  if (!dbBroker || dbBroker.trim() === '') {
+    throw new Error('MQTT broker not configured. Please complete the setup wizard or configure in Settings.');
+  }
+
   // Localhost is not supported in current architecture
   // Frontend runs in Docker and needs external broker IP (e.g., 10.0.60.3)
   if (dbBroker === 'localhost' || dbBroker === '127.0.0.1') {
