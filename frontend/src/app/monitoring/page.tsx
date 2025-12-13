@@ -340,8 +340,17 @@ export default function MonitoringPage() {
   const setQuickPreset = (hours: number) => {
     const end = new Date();
     const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-    setExportEndTime(end.toISOString().slice(0, 16)); // Format: YYYY-MM-DDTHH:mm
-    setExportStartTime(start.toISOString().slice(0, 16));
+    // Format as local time for datetime-local input (YYYY-MM-DDTHH:mm)
+    const formatLocalTime = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    setExportEndTime(formatLocalTime(end));
+    setExportStartTime(formatLocalTime(start));
   };
 
   // Handle export to CSV/JSON
