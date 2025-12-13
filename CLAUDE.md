@@ -161,7 +161,7 @@ docker compose -f docker-compose-monitoring.yml up -d
 docker compose down
 docker compose -f docker-compose-monitoring.yml down
 
-# Restart worker (e.g., after MQTT config change)
+# Restart worker (usually not needed - config reloads automatically)
 docker compose restart bacnet-worker
 
 # View logs
@@ -324,6 +324,44 @@ BacPipes/
 ```
 
 ## Recent Updates
+
+### 2025-12-13: MQTT Configuration Wait Loop Fix
+
+**Bug Fix: MQTT config not reloaded after setup wizard configuration**
+- **Problem**: After configuring MQTT broker via setup wizard, worker kept showing `Attempting MQTT reconnection to None:1883...`
+- **Root Cause**: MQTT config was loaded only once at startup and never refreshed, unlike BACnet config which had a wait loop
+- **Solution**: Added MQTT config wait loop and dynamic reload capability
+
+**Changes Implemented:**
+
+1. **Modified `load_mqtt_config()`** (`worker/mqtt_publisher.py:200-248`):
+   - Now returns `False` if broker is NULL (same pattern as BACnet config)
+   - Clear log messages guide user to setup wizard
+   - Worker waits for config instead of proceeding with NULL values
+
+2. **Added MQTT config wait loop** (`worker/mqtt_publisher.py:1173-1185`):
+   - After BACnet config wait, worker now also waits for MQTT config
+   - Polls database every 10 seconds until MQTT broker is configured
+   - Only proceeds to connect after both configs are ready
+
+3. **Enhanced `reconnect_mqtt()`** (`worker/mqtt_publisher.py:367-412`):
+   - Reloads MQTT config from database before each reconnection attempt
+   - Detects broker IP changes and recreates connection if needed
+   - Supports runtime broker changes via Settings GUI without restart
+
+**Behavior After Fix:**
+```
+1. Worker starts → checks BACnet config → waits if NULL
+2. BACnet config ready → checks MQTT config → waits if NULL
+3. User configures both via setup wizard
+4. Worker detects configs ready → starts within 10 seconds
+5. No manual restart required!
+```
+
+**Files Modified:**
+- `worker/mqtt_publisher.py` (lines 200-248, 367-412, 1156-1187)
+
+---
 
 ### 2025-12-13: Automatic Setup Wizard for Fresh Deployments
 

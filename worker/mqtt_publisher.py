@@ -198,7 +198,12 @@ class MqttPublisher:
             return False
 
     def load_mqtt_config(self):
-        """Load MQTT configuration from database"""
+        """Load MQTT configuration from database
+
+        Returns:
+            True if configuration is complete and ready
+            False if waiting for first-time setup (broker is NULL)
+        """
         try:
             cursor = self.db_conn.cursor()
             cursor.execute('SELECT broker, port, "clientId" FROM "MqttConfig" LIMIT 1')
@@ -206,23 +211,37 @@ class MqttPublisher:
             cursor.close()
 
             if result:
-                # Override with database settings (Settings GUI is source of truth)
-                self.mqtt_broker = result['broker']
-                self.mqtt_port = result['port']
-                self.mqtt_client_id = result['clientId'] or self.mqtt_client_id
+                db_broker = result['broker']
 
-                logger.info(f"📋 MQTT Configuration:")
-                logger.info(f"   - Broker: {self.mqtt_broker}:{self.mqtt_port}")
-                logger.info(f"   - Client ID: {self.mqtt_client_id}")
+                # Check if first-run setup is needed (broker is NULL)
+                if db_broker is None:
+                    logger.warning("⏸️  MQTT broker not configured - waiting for first-time setup")
+                    logger.info("   👉 Complete setup wizard at: http://your-ip:3001")
+                    logger.info("   ⏳ Worker will start automatically after configuration")
+                    return False
 
-                # Warn if using default placeholder IP
-                if self.mqtt_broker in ['10.0.60.3', '10.0.60.2', '192.168.1.35']:
-                    logger.warning(f"   ⚠️  Using default placeholder IP - configure actual broker via Settings GUI")
-                    logger.info(f"   💡 http://your-ip:3001/settings")
+                # Use configured broker from database
+                if db_broker and db_broker.strip():
+                    self.mqtt_broker = db_broker
+                    self.mqtt_port = result['port']
+                    self.mqtt_client_id = result['clientId'] or self.mqtt_client_id
+
+                    logger.info(f"📋 MQTT Configuration:")
+                    logger.info(f"   - Broker: {self.mqtt_broker}:{self.mqtt_port}")
+                    logger.info(f"   - Client ID: {self.mqtt_client_id}")
+
+                    # Warn if using default placeholder IP
+                    if self.mqtt_broker in ['10.0.60.3', '10.0.60.2', '192.168.1.35']:
+                        logger.warning(f"   ⚠️  Using default placeholder IP - configure actual broker via Settings GUI")
+                        logger.info(f"   💡 http://your-ip:3001/settings")
+                    return True
+                else:
+                    logger.warning("⚠️  MQTT broker empty - waiting for configuration")
+                    return False
             else:
-                logger.warning("⚠️  No MQTT config found in database, using environment defaults")
-
-            return True
+                logger.warning("⏸️  No MQTT config found - waiting for first-time setup")
+                logger.info("   👉 Complete setup wizard at: http://your-ip:3001")
+                return False
         except Exception as e:
             logger.error(f"❌ Failed to load MQTT config: {e}")
             logger.warning("⚠️  Using environment defaults")
@@ -346,21 +365,49 @@ class MqttPublisher:
             self.mqtt_connected = False
 
     def reconnect_mqtt(self):
-        """Attempt to reconnect to MQTT broker if disconnected"""
-        if not self.mqtt_connected and self.mqtt_client:
-            try:
-                logger.info(f"🔄 Attempting MQTT reconnection to {self.mqtt_broker}:{self.mqtt_port}...")
-                self.mqtt_client.reconnect()
-                # Brief wait to check connection
-                time.sleep(1)
-                if self.mqtt_connected:
-                    logger.info(f"✅ MQTT reconnected successfully")
-                    return True
+        """Attempt to reconnect to MQTT broker if disconnected
+
+        Reloads configuration from database before reconnection attempt
+        to pick up any broker IP changes made via Settings GUI.
+        """
+        if not self.mqtt_connected:
+            # Reload MQTT config from database (pick up any changes from Settings GUI)
+            old_broker = self.mqtt_broker
+            if self.load_mqtt_config():
+                # Check if broker changed - need to recreate client
+                if old_broker != self.mqtt_broker:
+                    logger.info(f"🔄 MQTT broker changed from {old_broker} to {self.mqtt_broker}")
+                    # Stop old client if exists
+                    if self.mqtt_client:
+                        try:
+                            self.mqtt_client.loop_stop()
+                            self.mqtt_client.disconnect()
+                        except Exception:
+                            pass
+                    # Create new connection with updated broker
+                    return self.connect_mqtt()
+
+                # Same broker - try reconnect with existing client
+                if self.mqtt_client:
+                    try:
+                        logger.info(f"🔄 Attempting MQTT reconnection to {self.mqtt_broker}:{self.mqtt_port}...")
+                        self.mqtt_client.reconnect()
+                        # Brief wait to check connection
+                        time.sleep(1)
+                        if self.mqtt_connected:
+                            logger.info(f"✅ MQTT reconnected successfully")
+                            return True
+                        else:
+                            logger.debug(f"   MQTT reconnection in progress...")
+                            return False
+                    except Exception as e:
+                        logger.debug(f"   MQTT reconnection failed: {e}")
+                        return False
                 else:
-                    logger.debug(f"   MQTT reconnection in progress...")
-                    return False
-            except Exception as e:
-                logger.debug(f"   MQTT reconnection failed: {e}")
+                    # No client exists - create new connection
+                    return self.connect_mqtt()
+            else:
+                logger.debug("   MQTT config not ready, skipping reconnection")
                 return False
         return self.mqtt_connected
 
@@ -1137,24 +1184,35 @@ class MqttPublisher:
         # Load system settings from database (timezone, etc)
         self.load_system_settings()
 
-        # Load MQTT configuration from database
-        self.load_mqtt_config()
-
         # Wait for BACnet configuration (first-time setup)
         logger.info("🔍 Checking BACnet configuration...")
-        config_ready = self.load_bacnet_config()
+        bacnet_ready = self.load_bacnet_config()
 
-        while not config_ready and not shutdown_requested:
-            logger.info("⏳ Waiting for configuration (checking again in 10 seconds)...")
+        while not bacnet_ready and not shutdown_requested:
+            logger.info("⏳ Waiting for BACnet configuration (checking again in 10 seconds)...")
             await asyncio.sleep(10)
             # Reload configuration from database
-            config_ready = self.load_bacnet_config()
+            bacnet_ready = self.load_bacnet_config()
 
         if shutdown_requested:
             logger.info("Shutdown requested during configuration wait")
             return 0
 
-        logger.info("✅ Configuration loaded - starting worker...")
+        # Wait for MQTT configuration (first-time setup)
+        logger.info("🔍 Checking MQTT configuration...")
+        mqtt_ready = self.load_mqtt_config()
+
+        while not mqtt_ready and not shutdown_requested:
+            logger.info("⏳ Waiting for MQTT configuration (checking again in 10 seconds)...")
+            await asyncio.sleep(10)
+            # Reload configuration from database
+            mqtt_ready = self.load_mqtt_config()
+
+        if shutdown_requested:
+            logger.info("Shutdown requested during configuration wait")
+            return 0
+
+        logger.info("✅ All configuration loaded - starting worker...")
 
         if not self.connect_mqtt():
             logger.error("Cannot start without MQTT connection")
