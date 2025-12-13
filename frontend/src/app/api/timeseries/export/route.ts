@@ -69,12 +69,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Convert to CSV
+    // Handle empty results
     if (result.rows.length === 0) {
-      return new NextResponse('No data found', {
-        headers: { 'Content-Type': 'text/csv' },
-      });
+      return NextResponse.json(
+        {
+          error: 'No data found for the selected time range',
+          hint: 'Data is collected when MQTT-enabled points are being polled. Please ensure: 1) BACnet discovery has been run, 2) Points have MQTT publishing enabled, 3) Sufficient time has passed for data collection.'
+        },
+        { status: 404 }
+      );
     }
+
+    // Convert to CSV
 
     const headers = Object.keys(result.rows[0]);
     const csvLines = [

@@ -384,7 +384,27 @@ export default function MonitoringPage() {
       }
 
       const url = `/api/timeseries/export?${params.toString()}`;
-      window.open(url, '_blank');
+
+      // Fetch first to check for errors
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setExportError(errorData.hint || errorData.error || 'Export failed');
+        setExportLoading(false);
+        return;
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `sensor_data_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
 
       setExportLoading(false);
     } catch (error) {
