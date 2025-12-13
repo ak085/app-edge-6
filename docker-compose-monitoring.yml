@@ -24,7 +24,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - bacpipes_bacpipes-network
+      - app-bacnet-local_bacpipes-network
     restart: unless-stopped
 
   # Telegraf - MQTT to TimescaleDB data pipeline (custom Python bridge)
@@ -46,14 +46,19 @@ services:
       TIMESCALEDB_PORT: 5432
       TIMESCALEDB_DB: ${TIMESCALEDB_DB:-timescaledb}
       TIMESCALEDB_USER: ${POSTGRES_USER:-anatoli}
+      # Config database connection (for reading MQTT settings)
+      CONFIG_DB_HOST: postgres
+      CONFIG_DB_PORT: 5432
+      CONFIG_DB_NAME: ${POSTGRES_DB:-bacpipes}
+      CONFIG_DB_USER: ${POSTGRES_USER:-anatoli}
       TZ: ${TZ:-Asia/Kuala_Lumpur}
     networks:
-      - bacpipes_bacpipes-network
+      - app-bacnet-local_bacpipes-network
     restart: unless-stopped
 
 # Use the network from main docker-compose.yml
 networks:
-  bacpipes_bacpipes-network:
+  app-bacnet-local_bacpipes-network:
     external: true
 
 # TimescaleDB volume

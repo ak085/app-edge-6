@@ -141,12 +141,17 @@ class DiscoveryApp(NormalApplication):
 
 
 def is_port_in_use(port: int, ip_address: str = '') -> bool:
-    """Check if a UDP port is currently in use on specific IP"""
+    """Check if a UDP port is currently in use
+
+    Note: Binds to wildcard (0.0.0.0) instead of specific IP to work from inside Docker container.
+    Even with network_mode: host, container cannot bind to specific host IP addresses.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             # Use SO_REUSEADDR to detect if port is truly available
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((ip_address, port))
+            # Bind to wildcard to check port availability from inside container
+            s.bind(('0.0.0.0', port))
             return False  # Port is available
     except OSError:
         return True  # Port is in use

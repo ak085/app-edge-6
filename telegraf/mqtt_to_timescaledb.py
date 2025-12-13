@@ -27,15 +27,15 @@ TIMESCALEDB_NAME = os.getenv('TIMESCALEDB_DB', 'timescaledb')
 TIMESCALEDB_USER = os.getenv('TIMESCALEDB_USER', 'anatoli')
 
 # Configuration from environment - BacPipes config database
-# Note: Using localhost:5434 because telegraf uses host networking
-CONFIG_DB_HOST = os.getenv('CONFIG_DB_HOST', 'localhost')
-CONFIG_DB_PORT = int(os.getenv('CONFIG_DB_PORT', '5434'))
+# Note: Using service name 'postgres' with bridge networking for LXC compatibility
+CONFIG_DB_HOST = os.getenv('CONFIG_DB_HOST', 'postgres')
+CONFIG_DB_PORT = int(os.getenv('CONFIG_DB_PORT', '5432'))
 CONFIG_DB_NAME = os.getenv('CONFIG_DB_NAME', 'bacpipes')
 CONFIG_DB_USER = os.getenv('CONFIG_DB_USER', 'anatoli')
 
 # MQTT Configuration (from environment variables, with database override)
 mqtt_config = {
-    'broker': os.getenv('MQTT_BROKER', 'localhost'),  # Read from env, fallback to localhost
+    'broker': os.getenv('MQTT_BROKER', '10.0.60.3'),  # Read from env, fallback to default broker
     'port': int(os.getenv('MQTT_PORT', '1883')),
     'client_id': os.getenv('MQTT_CLIENT_ID_TELEGRAF', 'bacpipes_telegraf')  # Unique per deployment
 }

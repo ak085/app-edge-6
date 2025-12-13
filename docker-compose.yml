@@ -49,6 +49,12 @@ services:
       TIMESCALEDB_PASSWORD: ${TIMESCALEDB_PASSWORD:-}
     ports:
       - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/dashboard/summary', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - bacpipes-network
     restart: unless-stopped
@@ -62,18 +68,19 @@ services:
       postgres:
         condition: service_healthy
       frontend:
-        condition: service_started
+        condition: service_healthy
+    network_mode: host
     environment:
-      # Database connection (required)
-      DB_HOST: postgres
-      DB_PORT: 5432
+      # Database connection (required) - use localhost with mapped ports for host networking
+      DB_HOST: localhost
+      DB_PORT: 5434
       DB_NAME: ${POSTGRES_DB:-bacpipes}
       DB_USER: ${POSTGRES_USER:-anatoli}
       DB_PASSWORD: ""
 
       # TimescaleDB connection (optional - for direct historical writes)
-      TIMESCALEDB_HOST: ${TIMESCALEDB_HOST:-timescaledb}
-      TIMESCALEDB_PORT: ${TIMESCALEDB_PORT:-5432}
+      TIMESCALEDB_HOST: localhost
+      TIMESCALEDB_PORT: 5435
       TIMESCALEDB_DB: ${TIMESCALEDB_DB:-timescaledb}
       TIMESCALEDB_USER: ${TIMESCALEDB_USER:-anatoli}
       TIMESCALEDB_PASSWORD: ${TIMESCALEDB_PASSWORD:-}
@@ -92,8 +99,6 @@ services:
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       # System
       TZ: ${TZ:-Asia/Kuala_Lumpur}
-    networks:
-      - bacpipes-network
     restart: unless-stopped
 
 networks:

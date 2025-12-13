@@ -17,7 +17,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
 # Start script (migrations, seeding, then production server)
 # Seeding is idempotent - safe to run on every startup
