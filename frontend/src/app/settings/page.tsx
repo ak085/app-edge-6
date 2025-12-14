@@ -158,7 +158,11 @@ export default function SettingsPage() {
       if (data.success) {
         setToast({ message: `${certType} certificate uploaded successfully`, type: "success" });
         await loadCertificateStatus();
-        await loadSettings(); // Reload settings to get updated paths
+        // Update only the certificate path in settings, preserve other unsaved changes
+        if (data.path) {
+          const certPathKey = certType === 'ca' ? 'mqttCaCertPath' : certType === 'client' ? 'mqttClientCertPath' : 'mqttClientKeyPath';
+          setSettings(prev => ({ ...prev, [certPathKey]: data.path }));
+        }
       } else {
         setToast({ message: data.error || "Failed to upload certificate", type: "error" });
       }
@@ -181,7 +185,9 @@ export default function SettingsPage() {
       if (data.success) {
         setToast({ message: `${certType} certificate deleted`, type: "success" });
         await loadCertificateStatus();
-        await loadSettings();
+        // Clear only the certificate path in settings, preserve other unsaved changes
+        const certPathKey = certType === 'ca' ? 'mqttCaCertPath' : certType === 'client' ? 'mqttClientCertPath' : 'mqttClientKeyPath';
+        setSettings(prev => ({ ...prev, [certPathKey]: null }));
       } else {
         setToast({ message: data.error || "Failed to delete certificate", type: "error" });
       }
