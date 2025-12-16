@@ -31,6 +31,7 @@ export async function GET() {
       // MQTT Connection
       mqttBroker: mqttConfig.broker,
       mqttPort: mqttConfig.port,
+      mqttClientId: mqttConfig.clientId,
       // MQTT Authentication
       mqttUsername: mqttConfig.username,
       mqttPassword: mqttConfig.password,
@@ -103,6 +104,7 @@ export async function PUT(request: Request) {
           // Connection
           broker: body.mqttBroker ?? null,
           port: body.mqttPort ?? mqttConfig.port,
+          clientId: body.mqttClientId || mqttConfig.clientId,
           // Authentication
           username: body.mqttUsername !== undefined ? (body.mqttUsername || null) : mqttConfig.username,
           password: body.mqttPassword !== undefined ? (body.mqttPassword || null) : mqttConfig.password,

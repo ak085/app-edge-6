@@ -12,6 +12,7 @@ interface Settings {
   // MQTT Connection
   mqttBroker: string;
   mqttPort: number;
+  mqttClientId: string;
   // MQTT Authentication
   mqttUsername: string;
   mqttPassword: string;
@@ -43,6 +44,7 @@ export default function SettingsPage() {
     // MQTT Connection
     mqttBroker: "",
     mqttPort: 1883,
+    mqttClientId: "bacpipes_worker",
     // MQTT Authentication
     mqttUsername: "",
     mqttPassword: "",
@@ -102,6 +104,7 @@ export default function SettingsPage() {
           // MQTT Connection
           mqttBroker: data.settings.mqttBroker || "",
           mqttPort: data.settings.mqttPort || 1883,
+          mqttClientId: data.settings.mqttClientId || "bacpipes_worker",
           // MQTT Authentication
           mqttUsername: data.settings.mqttUsername || "",
           mqttPassword: data.settings.mqttPassword || "",
@@ -393,6 +396,23 @@ export default function SettingsPage() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Standard MQTT port (default: 1883, TLS: 8883)
+                </p>
+              </div>
+
+              {/* MQTT Client ID */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Client ID
+                </label>
+                <input
+                  type="text"
+                  value={settings.mqttClientId}
+                  onChange={(e) => setSettings({ ...settings, mqttClientId: e.target.value })}
+                  placeholder="bacpipes_worker"
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Unique identifier shown on MQTT broker
                 </p>
               </div>
             </div>

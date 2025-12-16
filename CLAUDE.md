@@ -10,10 +10,12 @@
 - MQTT publishing to external broker
 - MQTT TLS/SSL with certificate verification
 - MQTT authentication (username/password)
+- Configurable MQTT Client ID (displayed on broker)
 - BACnet write command support
 - Automatic setup wizard for first-run
 - Database-driven configuration (no .env editing needed)
 - Minute-aligned polling (starts at second :00)
+- UTC timestamps with timezone offset for ML applications
 
 ---
 
@@ -77,6 +79,30 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 
 ---
 
+## MQTT Payload Format
+
+```json
+{
+  "value": 23.5,
+  "timestamp": "2025-12-16T12:31:00.847Z",
+  "tz": 8,
+  "units": "degC",
+  "quality": "good",
+  "dis": "Supply Air Temp",
+  "haystackName": "site.ahu.12.sensor.temp.air.supply.actual",
+  "objectType": "analog-input"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `timestamp` | UTC time (ISO 8601 with Z suffix) |
+| `tz` | Timezone offset from Settings (e.g., 8 for +08:00) |
+| `haystackName` | Full Haystack semantic name |
+| `objectType` | BACnet object type |
+
+---
+
 ## Key Files
 
 | File | Purpose |
@@ -117,9 +143,9 @@ The storage stack can be deployed on the same machine or a separate server.
 
 ## Repository
 
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge2.git
+- **Gitea**: http://10.0.10.2:30008/ak101/app-edge3.git
 - **Branch**: main
 
 ---
 
-**Last Updated**: 2025-12-15
+**Last Updated**: 2025-12-16

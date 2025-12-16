@@ -165,6 +165,7 @@ def on_message(client, userdata, msg):
         # Prepare data for insertion
         data = {
             'time': dt,
+            'timezone': payload.get('timezone'),  # e.g., "Asia/Kuala_Lumpur"
             'site_id': payload.get('siteId'),
             'equipment_type': payload.get('equipmentType'),
             'equipment_id': payload.get('equipmentId'),
@@ -212,14 +213,14 @@ def insert_sensor_reading(data):
 
         sql = """
         INSERT INTO sensor_readings (
-            time, site_id, equipment_type, equipment_id,
+            time, timezone, site_id, equipment_type, equipment_id,
             device_id, device_name, device_ip,
             object_type, object_instance,
             point_id, point_name, haystack_name, dis,
             value, units, quality,
             poll_duration, poll_cycle
         ) VALUES (
-            %(time)s, %(site_id)s, %(equipment_type)s, %(equipment_id)s,
+            %(time)s, %(timezone)s, %(site_id)s, %(equipment_type)s, %(equipment_id)s,
             %(device_id)s, %(device_name)s, %(device_ip)s,
             %(object_type)s, %(object_instance)s,
             %(point_id)s, %(point_name)s, %(haystack_name)s, %(dis)s,

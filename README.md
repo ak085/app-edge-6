@@ -13,7 +13,7 @@
 
 ```bash
 # Clone and deploy
-git clone http://10.0.10.2:30008/ak101/app-edge2.git bacpipes
+git clone http://10.0.10.2:30008/ak101/app-edge3.git bacpipes
 cd bacpipes
 docker compose up -d
 
@@ -76,10 +76,11 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 | **Haystack Tagging** | 8-field semantic naming for ML/analytics |
 | **MQTT Publishing** | Real-time data streaming to any broker |
 | **TLS Support** | Secure MQTT with certificate verification |
+| **Configurable Client ID** | Custom identifier shown on MQTT broker |
 | **Write Commands** | Remote control with priority array support |
 | **Setup Wizard** | Zero-config first-run experience |
 | **Minute-Aligned Polling** | Data starts at second :00 for synchronization |
-| **Graceful Degradation** | Works even if MQTT broker unavailable |
+| **Timezone Support** | UTC timestamps with `tz` offset for ML applications |
 
 ---
 
@@ -128,26 +129,41 @@ bacnet/klcc/ahu_12/sensor/temp/air/supply/actual/presentValue
 
 ---
 
+## MQTT Payload Format
+
+```json
+{
+  "value": 23.5,
+  "timestamp": "2025-12-16T12:31:00.847Z",
+  "tz": 8,
+  "units": "degC",
+  "quality": "good",
+  "dis": "Supply Air Temp",
+  "haystackName": "site.ahu.12.sensor.temp.air.supply.actual",
+  "objectType": "analog-input"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `timestamp` | UTC time (ISO 8601) |
+| `tz` | Timezone offset from Settings (e.g., 8 for +08:00) |
+| `haystackName` | Full Haystack semantic name |
+| `objectType` | BACnet object type |
+
+---
+
 ## Configuration
 
 ### Via Settings Page (Recommended)
 
 All configuration is done via the web UI at `/settings`:
 - BACnet Network IP, Port, Device ID
-- MQTT Broker IP, Port, Authentication
+- MQTT Broker IP, Port, Client ID
+- MQTT Authentication (username/password)
 - TLS/SSL settings with certificate upload
+- Timezone for timestamps
 - Poll intervals
-
-### Via Environment Variables (Optional)
-
-For advanced customization, create a `.env` file:
-
-```bash
-# Only needed for custom database credentials
-POSTGRES_USER=anatoli
-POSTGRES_DB=bacpipes
-TZ=Asia/Kuala_Lumpur
-```
 
 ---
 
@@ -158,31 +174,6 @@ TZ=Asia/Kuala_Lumpur
 | 3001 | Web UI (Frontend) |
 | 5434 | PostgreSQL |
 | 47808 | BACnet/IP (UDP) |
-
----
-
-## MQTT Topics
-
-**Point Data:**
-```
-bacnet/{site}/{equip}_{id}/{function}/{measurement}/{substance}/{condition}/{descriptor}/presentValue
-```
-
-**Write Commands:**
-```
-bacnet/write/command
-```
-
-**Payload Format:**
-```json
-{
-  "haystack_name": "klcc.ahu.12.sensor.temp.air.supply.actual",
-  "dis": "AHU-12 Supply Air Temp",
-  "value": 23.5,
-  "units": "degC",
-  "timestamp": "2025-12-15T10:30:00.000Z"
-}
-```
 
 ---
 
@@ -243,7 +234,7 @@ bacpipes/
 
 ## Repository
 
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge2.git
+- **Gitea**: http://10.0.10.2:30008/ak101/app-edge3.git
 
 ---
 

@@ -1155,14 +1155,12 @@ class MqttPublisher:
             payload = {
                 "value": clean_value,
                 "timestamp": timestamp,
+                "tz": int(datetime.now(self.timezone).utcoffset().total_seconds() / 3600),  # e.g., 8 for +08:00
                 "units": point['units'],
                 "quality": "good",
                 "dis": point['dis'],
                 "haystackName": point['haystackPointName'],
-                "deviceIp": point['ipAddress'],
-                "deviceId": point['deviceId'],
-                "objectType": point['objectType'],
-                "objectInstance": point['objectInstance']
+                "objectType": point['objectType']
             }
 
             self.mqtt_client.publish(
@@ -1187,7 +1185,7 @@ class MqttPublisher:
 
         cycle_start = time.time()
         current_time = cycle_start
-        timestamp = datetime.now(pytz.utc).isoformat()  # Use UTC for database storage (timezone-aware)
+        timestamp = datetime.now(pytz.utc).isoformat().replace('+00:00', 'Z')  # UTC
 
         # Calculate next minute boundary for minute-aligned polling
         next_minute = math.ceil(current_time / 60) * 60
