@@ -226,6 +226,11 @@ model DiscoveryJob {
 model SystemSettings {
   id                    Int       @id @default(autoincrement())
 
+  // Authentication
+  adminUsername         String    @default("admin")
+  adminPasswordHash     String    @default("")  // bcrypt hash, empty = use default "admin"
+  masterPinHash         String?   // bcrypt hash of master PIN for password changes
+
   // Network
   bacnetIp              String?   // Nullable - configured via setup wizard
   bacnetPort            Int       @default(47808)

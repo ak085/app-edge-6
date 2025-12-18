@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, Search, List, Settings, Database } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Home, Search, List, Settings, Database, LogOut } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -13,6 +13,22 @@ const navigation = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Don't show navigation on login page
+  if (pathname === "/login") {
+    return null;
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }
 
   return (
     <nav className="bg-slate-900 border-b border-slate-700 shadow-lg">
@@ -53,6 +69,16 @@ export default function Navigation() {
                 </Link>
               );
             })}
+
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 text-slate-300 hover:bg-red-600 hover:text-white ml-2"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Logout</span>
+            </button>
           </div>
 
           {/* Mobile Menu Button */}

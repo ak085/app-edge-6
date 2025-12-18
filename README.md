@@ -19,6 +19,7 @@ docker compose up -d
 
 # Access UI
 # http://<your-ip>:3001
+# Default login: admin / admin
 ```
 
 **Setup wizard appears automatically on first run** - configures BACnet IP and MQTT broker.
@@ -44,13 +45,14 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 │ BacPipes (Docker Compose)                   │
 ├─────────────────────────────────────────────┤
 │  Frontend (Next.js) - Port 3001             │
+│  ├─ Login (session-based auth)              │
 │  ├─ Dashboard (system status)               │
 │  ├─ Discovery (BACnet scan)                 │
 │  ├─ Points (Haystack tagging)               │
-│  └─ Settings (BACnet/MQTT config)           │
+│  └─ Settings (config, password, PIN)        │
 │                                             │
 │  PostgreSQL - Port 5434                     │
-│  └─ Devices, Points, Config                 │
+│  └─ Devices, Points, Config, Auth           │
 │                                             │
 │  BACnet Worker (Python/BACpypes3)           │
 │  ├─ Polls BACnet devices                    │
@@ -72,6 +74,8 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 
 | Feature | Description |
 |---------|-------------|
+| **Web Authentication** | Login required, 3-hour session timeout |
+| **Master PIN** | Protects password changes (admin-only control) |
 | **BACnet Discovery** | Auto-scan network for devices and points |
 | **Haystack Tagging** | 8-field semantic naming for ML/analytics |
 | **MQTT Publishing** | Real-time data streaming to any broker |
@@ -84,15 +88,47 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 
 ---
 
+## Authentication
+
+### Default Credentials
+- **Username**: `admin`
+- **Password**: `admin`
+
+### Master PIN
+The Master PIN protects password changes. Only the system administrator should know it.
+- Set via Settings page after login
+- 4-6 digits
+- Required when changing the password
+
+### Recovery Commands (via SSH)
+
+If you forget your credentials, use these CLI commands:
+
+```bash
+# Reset password to "admin"
+docker exec bacpipes-frontend node scripts/reset-password.js
+
+# Reset Master PIN (removes it)
+docker exec bacpipes-frontend node scripts/reset-pin.js
+
+# Set Master PIN directly
+docker exec bacpipes-frontend node scripts/set-pin.js 1234
+```
+
+---
+
 ## First-Time Setup
 
 1. **Access Dashboard**: http://your-ip:3001
-2. **Complete Setup Wizard**:
+2. **Login**: Use `admin` / `admin`
+3. **Complete Setup Wizard**:
    - Select BACnet network interface (auto-detected)
    - Enter MQTT broker IP (optional - can configure later)
-3. **Run Discovery**: Click "Start Discovery" to find BACnet devices
-4. **Tag Points**: Add Haystack tags, enable MQTT publishing
-5. **Verify**: Check Dashboard for MQTT connection status
+4. **Set Master PIN**: Go to Settings, set a PIN to protect password changes
+5. **Change Password**: Update the default password
+6. **Run Discovery**: Click "Start Discovery" to find BACnet devices
+7. **Tag Points**: Add Haystack tags, enable MQTT publishing
+8. **Verify**: Check Dashboard for MQTT connection status
 
 ---
 
@@ -106,6 +142,8 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 | Restart worker | `docker compose restart bacnet-worker` |
 | Rebuild | `docker compose build && docker compose up -d` |
 | Reset (delete data) | `docker compose down -v` |
+| Reset password | `docker exec bacpipes-frontend node scripts/reset-password.js` |
+| Reset PIN | `docker exec bacpipes-frontend node scripts/reset-pin.js` |
 
 ---
 
@@ -164,6 +202,8 @@ All configuration is done via the web UI at `/settings`:
 - TLS/SSL settings with certificate upload
 - Timezone for timestamps
 - Poll intervals
+- Master PIN management
+- Password change
 
 ---
 
@@ -178,6 +218,10 @@ All configuration is done via the web UI at `/settings`:
 ---
 
 ## Troubleshooting
+
+### Can't Login
+1. Try default credentials: `admin` / `admin`
+2. Reset password: `docker exec bacpipes-frontend node scripts/reset-password.js`
 
 ### Worker Not Starting
 ```bash
@@ -197,22 +241,6 @@ Common: Database not ready. Wait 30s and check again.
 
 ---
 
-## Optional: Time-Series Storage
-
-For historical data storage, deploy the storage stack separately:
-
-```bash
-docker compose -f docker-compose-storage.yml up -d
-```
-
-This adds:
-- TimescaleDB (port 5435) - Time-series database
-- Telegraf - MQTT to TimescaleDB ingestion
-
-The storage stack can run on the same machine or a separate server.
-
----
-
 ## Development
 
 See `CLAUDE.md` for detailed development context.
@@ -221,13 +249,13 @@ See `CLAUDE.md` for detailed development context.
 ```
 bacpipes/
 ├── docker-compose.yml          # Core services (frontend, postgres, worker)
-├── docker-compose-storage.yml  # Optional storage (timescaledb, telegraf)
 ├── frontend/                   # Next.js web app
 │   ├── src/app/               # Pages and API routes
+│   ├── src/lib/               # Auth, session, utilities
+│   ├── scripts/               # CLI recovery tools
 │   └── prisma/                # Database schema
-├── worker/                     # Python BACnet worker
-│   └── mqtt_publisher.py      # Main polling loop
-└── telegraf/                   # MQTT to TimescaleDB bridge
+└── worker/                     # Python BACnet worker
+    └── mqtt_publisher.py      # Main polling loop
 ```
 
 ---

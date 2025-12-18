@@ -1271,7 +1271,6 @@ class MqttPublisher:
                     logger.warning(f"⚠️  Failed to update PostgreSQL for point {point['id']}: {e}")
 
                 # 2. MQTT - External subscribers (OPTIONAL - graceful degradation)
-                # Note: Historical storage is handled by separate Telegraf → TimescaleDB pipeline
                 if self.publish_individual_topic(point, value, timestamp):
                     individual_publishes += 1
 

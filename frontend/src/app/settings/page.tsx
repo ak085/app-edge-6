@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Save, Upload, Trash2, Lock, Shield, Radio } from "lucide-react";
+import { Save, Upload, Trash2, Lock, Shield, Radio, Key } from "lucide-react";
 
 interface Settings {
+  // Authentication
+  hasMasterPin: boolean;
   // BACnet
   bacnetIp: string;
   bacnetPort: number;
@@ -36,6 +38,8 @@ interface CertificateStatus {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
+    // Authentication
+    hasMasterPin: false,
     // BACnet
     bacnetIp: "",
     bacnetPort: 47808,
@@ -73,6 +77,19 @@ export default function SettingsPage() {
   const [bulkPollInterval, setBulkPollInterval] = useState(60);
   const [applyingBulkInterval, setApplyingBulkInterval] = useState(false);
 
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [masterPinForPassword, setMasterPinForPassword] = useState("");
+
+  // Master PIN management state
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [changingPin, setChangingPin] = useState(false);
+
   // Load settings on mount
   useEffect(() => {
     loadSettings();
@@ -96,6 +113,8 @@ export default function SettingsPage() {
 
       if (data.success && data.settings) {
         const loadedSettings: Settings = {
+          // Authentication
+          hasMasterPin: data.settings.hasMasterPin ?? false,
           // BACnet
           bacnetIp: data.settings.bacnetIp || "",
           bacnetPort: data.settings.bacnetPort || 47808,
@@ -238,6 +257,102 @@ export default function SettingsPage() {
       setToast({ message: "Failed to save settings", type: "error" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changePassword() {
+    if (newPassword !== confirmPassword) {
+      setToast({ message: "New passwords do not match", type: "error" });
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      setToast({ message: "Password must be at least 4 characters", type: "error" });
+      return;
+    }
+
+    // Require PIN if one is set
+    if (settings.hasMasterPin && !masterPinForPassword) {
+      setToast({ message: "Master PIN is required to change password", type: "error" });
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      const response = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          masterPin: masterPinForPassword || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setToast({ message: "Password changed successfully!", type: "success" });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setMasterPinForPassword("");
+      } else {
+        setToast({ message: data.error || "Failed to change password", type: "error" });
+      }
+    } catch (error) {
+      console.error("Failed to change password:", error);
+      setToast({ message: "Failed to change password", type: "error" });
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
+  async function changePin() {
+    if (newPin !== confirmPin) {
+      setToast({ message: "New PINs do not match", type: "error" });
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(newPin)) {
+      setToast({ message: "PIN must be 4-6 digits", type: "error" });
+      return;
+    }
+
+    // Require current PIN if one is already set
+    if (settings.hasMasterPin && !currentPin) {
+      setToast({ message: "Current PIN is required", type: "error" });
+      return;
+    }
+
+    try {
+      setChangingPin(true);
+      const response = await fetch("/api/auth/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPin: currentPin || undefined,
+          newPin,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setToast({ message: settings.hasMasterPin ? "Master PIN changed successfully!" : "Master PIN set successfully!", type: "success" });
+        setCurrentPin("");
+        setNewPin("");
+        setConfirmPin("");
+        // Update local state to reflect PIN is now set
+        setSettings({ ...settings, hasMasterPin: true });
+      } else {
+        setToast({ message: data.error || "Failed to change PIN", type: "error" });
+      }
+    } catch (error) {
+      console.error("Failed to change PIN:", error);
+      setToast({ message: "Failed to change PIN", type: "error" });
+    } finally {
+      setChangingPin(false);
     }
   }
 
@@ -785,6 +900,169 @@ export default function SettingsPage() {
                 Individual point intervals can still be changed on the Points page.
                 The BACnet worker will pick up changes on its next configuration refresh (typically within 60 seconds).
               </p>
+            </div>
+          </div>
+
+          {/* Master PIN */}
+          <div className="card bg-card p-6 rounded-lg border-2 border-border">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Shield className="w-6 h-6 text-purple-600" />
+              Master PIN
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              {settings.hasMasterPin
+                ? "Master PIN is set. It is required to change the admin password."
+                : "Set a master PIN to protect password changes. Only you (the system administrator) should know this PIN."}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Current PIN (only if PIN exists) */}
+              {settings.hasMasterPin && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Current PIN
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPin}
+                    onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="••••••"
+                    maxLength={6}
+                    className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                  />
+                </div>
+              )}
+
+              {/* New PIN */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  {settings.hasMasterPin ? "New PIN" : "Set PIN"}
+                </label>
+                <input
+                  type="password"
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="4-6 digits"
+                  maxLength={6}
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+              </div>
+
+              {/* Confirm PIN */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Confirm PIN
+                </label>
+                <input
+                  type="password"
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="4-6 digits"
+                  maxLength={6}
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <button
+                onClick={changePin}
+                disabled={changingPin || !newPin || !confirmPin || (settings.hasMasterPin && !currentPin)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {changingPin ? "Saving..." : (settings.hasMasterPin ? "Change PIN" : "Set PIN")}
+              </button>
+            </div>
+
+            {/* PIN Info */}
+            <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-sm text-purple-900">
+                <strong>🔐 Important:</strong> The master PIN protects password changes. If you forget it, you can reset it via CLI command:
+                <code className="bg-purple-100 px-2 py-0.5 rounded ml-1">docker exec bacpipes-frontend node scripts/reset-pin.js</code>
+              </p>
+            </div>
+          </div>
+
+          {/* Change Password */}
+          <div className="card bg-card p-6 rounded-lg border-2 border-border">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Key className="w-6 h-6 text-orange-500" />
+              Change Password
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Update the admin password for accessing this interface
+              {settings.hasMasterPin && <span className="text-purple-600 font-medium"> (requires Master PIN)</span>}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Master PIN (if set) */}
+              {settings.hasMasterPin && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2 text-purple-700">
+                    Master PIN <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={masterPinForPassword}
+                    onChange={(e) => setMasterPinForPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter your master PIN"
+                    maxLength={6}
+                    className="input w-full md:w-1/3 bg-background border-2 border-purple-300 px-3 py-2 rounded-md"
+                  />
+                </div>
+              )}
+
+              {/* Current Password */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <button
+                onClick={changePassword}
+                disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword || (settings.hasMasterPin && !masterPinForPassword)}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {changingPassword ? "Changing..." : "Change Password"}
+              </button>
             </div>
           </div>
 

@@ -5,6 +5,8 @@
 **Production Ready**: BACnet-to-MQTT edge gateway with web-based configuration.
 
 **Core Features**:
+- Web UI authentication with session management
+- Master PIN protection for password changes
 - BACnet device/point discovery via web UI
 - Haystack tagging (8-field semantic naming)
 - MQTT publishing to external broker
@@ -26,13 +28,14 @@
 │ BacPipes (Docker Compose)                   │
 ├─────────────────────────────────────────────┤
 │  Frontend (Next.js 15) - Port 3001          │
+│  ├─ Login (session-based auth)              │
 │  ├─ Dashboard                               │
 │  ├─ Discovery                               │
 │  ├─ Points (Haystack tagging)               │
-│  └─ Settings                                │
+│  └─ Settings (Master PIN, password)         │
 │                                             │
 │  PostgreSQL 15 - Port 5434                  │
-│  └─ Devices, Points, Config                 │
+│  └─ Devices, Points, Config, Auth           │
 │                                             │
 │  BACnet Worker (Python/BACpypes3)           │
 │  ├─ Polls BACnet devices                    │
@@ -49,9 +52,39 @@
 
 ---
 
+## Authentication System
+
+### Login
+- Default credentials: `admin` / `admin`
+- Session-based with iron-session (encrypted cookies)
+- 3-hour session timeout
+- All pages/APIs protected except `/login`
+
+### Master PIN
+- 4-6 digit PIN protects password changes
+- Set via Settings page or CLI
+- Only system administrator should know the PIN
+- Prevents unauthorized password changes by other users
+
+### CLI Recovery Commands
+
+```bash
+# Reset password to "admin" (if forgotten)
+docker exec bacpipes-frontend node scripts/reset-password.js
+
+# Reset Master PIN (if forgotten)
+docker exec bacpipes-frontend node scripts/reset-pin.js
+
+# Set Master PIN directly (remote management)
+docker exec bacpipes-frontend node scripts/set-pin.js 1234
+```
+
+---
+
 ## Technology Stack
 
 - **Frontend**: Next.js 15 + TypeScript + Shadcn/ui
+- **Auth**: iron-session + bcryptjs
 - **Database**: PostgreSQL 15
 - **Worker**: Python 3.10 + BACpypes3 + paho-mqtt
 - **Deployment**: Docker Compose
@@ -75,6 +108,10 @@ docker compose restart bacnet-worker
 
 # Database access
 docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
+
+# Recovery commands
+docker exec bacpipes-frontend node scripts/reset-password.js
+docker exec bacpipes-frontend node scripts/reset-pin.js
 ```
 
 ---
@@ -107,6 +144,11 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 
 | File | Purpose |
 |------|---------|
+| `frontend/src/lib/session.ts` | Session configuration |
+| `frontend/src/lib/auth.ts` | Password hashing (bcrypt) |
+| `frontend/src/middleware.ts` | Auth middleware |
+| `frontend/src/app/api/auth/*` | Auth API routes |
+| `frontend/scripts/*.js` | CLI recovery scripts |
 | `worker/mqtt_publisher.py` | Main BACnet polling and MQTT publishing |
 | `worker/discovery.py` | BACnet device/point discovery |
 | `frontend/src/app/page.tsx` | Dashboard |
@@ -125,22 +167,6 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 
 ---
 
-## Optional: Time-Series Storage
-
-For historical data storage, deploy the storage stack separately:
-
-```bash
-docker compose -f docker-compose-storage.yml up -d
-```
-
-This adds:
-- TimescaleDB (port 5435)
-- Telegraf (MQTT → TimescaleDB ingestion)
-
-The storage stack can be deployed on the same machine or a separate server.
-
----
-
 ## Repository
 
 - **Gitea**: http://10.0.10.2:30008/ak101/app-edge3.git
@@ -148,4 +174,4 @@ The storage stack can be deployed on the same machine or a separate server.
 
 ---
 
-**Last Updated**: 2025-12-16
+**Last Updated**: 2025-12-18

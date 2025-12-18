@@ -23,6 +23,8 @@ export async function GET() {
 
     // Combine into single response
     const settings = {
+      // Authentication
+      hasMasterPin: !!systemSettings.masterPinHash,
       // BACnet settings
       bacnetIp: systemSettings.bacnetIp,
       bacnetPort: systemSettings.bacnetPort,
