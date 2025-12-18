@@ -172,8 +172,8 @@ def run_discovery(job_id: str):
     import os
     try:
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'postgres'),
-            port=int(os.getenv('DB_PORT', '5432')),
+            host=os.getenv('DB_HOST', 'localhost'),
+            port=int(os.getenv('DB_PORT', '5434')),
             database=os.getenv('DB_NAME', 'bacpipes'),
             user=os.getenv('DB_USER', 'anatoli'),
             password=""

@@ -8,6 +8,7 @@ const publicPaths = [
   '/login',
   '/api/auth/login',
   '/api/auth/logout',
+  '/api/dashboard/summary',  // Required for Docker healthcheck
 ]
 
 // Paths that should be ignored by middleware

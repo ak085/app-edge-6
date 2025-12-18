@@ -14,8 +14,8 @@ from discovery import run_discovery
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'postgres'),
-        port=int(os.getenv('DB_PORT', '5432')),
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=int(os.getenv('DB_PORT', '5434')),
         database=os.getenv('DB_NAME', 'bacpipes'),
         user=os.getenv('DB_USER', 'anatoli'),
         password=""
@@ -25,7 +25,7 @@ def poll_and_process_jobs():
     """Main loop - poll database for new jobs and process them"""
 
     print("=== BacPipes Discovery Job Processor Started ===")
-    print(f"Database: {os.getenv('DB_HOST', 'postgres')}:{os.getenv('DB_PORT', '5432')}")
+    print(f"Database: {os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '5434')}")
     print(f"Polling for new discovery jobs every 5 seconds...")
     print("=" * 60)
 
