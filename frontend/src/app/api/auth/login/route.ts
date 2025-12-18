@@ -16,13 +16,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Get system settings (contains admin credentials)
-    const settings = await prisma.systemSettings.findFirst()
+    // Auto-create default settings if none exist (fresh deployment)
+    let settings = await prisma.systemSettings.findFirst()
 
     if (!settings) {
-      return NextResponse.json(
-        { success: false, error: 'System not configured' },
-        { status: 500 }
-      )
+      settings = await prisma.systemSettings.create({
+        data: {
+          adminUsername: 'admin',
+          adminPasswordHash: '', // Empty = use default "admin" password
+        }
+      })
     }
 
     // Check username
