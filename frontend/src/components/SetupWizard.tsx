@@ -34,7 +34,9 @@ export default function SetupWizard({ isOpen, onComplete }: SetupWizardProps) {
     try {
       setLoadingInterfaces(true);
       setError(null);
-      const response = await fetch('/api/network/interfaces');
+      const response = await fetch('/api/network/interfaces', {
+        credentials: 'include'
+      });
       const data = await response.json();
 
       if (data.success && data.interfaces.length > 0) {
@@ -76,6 +78,7 @@ export default function SetupWizard({ isOpen, onComplete }: SetupWizardProps) {
       const response = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           bacnetIp: selectedBacnetIp,
           mqttBroker: mqttBroker,
