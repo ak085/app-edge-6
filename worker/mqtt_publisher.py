@@ -95,6 +95,10 @@ class MqttPublisher:
         self.point_last_poll = {}  # Track last poll time per point ID
         self.pending_write_commands = []  # Queue for MQTT write commands (processed in main loop)
 
+        # Data flow tracking for connection status (fix for false "connected" after config change)
+        self.last_data_flow_time = None  # When data was last successfully published
+        self.messages_published_since_config_change = 0  # Reset on config change
+
         logger.info("=== BacPipes MQTT Publisher Configuration ===")
         logger.info(f"Database: {self.db_host}:{self.db_port}/{self.db_name}")
         logger.info(f"MQTT Broker: {self.mqtt_broker}:{self.mqtt_port}")
@@ -143,6 +147,36 @@ class MqttPublisher:
         except Exception as e:
             logger.error(f"❌ Failed to connect to database: {e}")
             return False
+
+    def update_mqtt_connection_status(self, status: str, update_last_connected: bool = False, update_last_data_flow: bool = False):
+        """Update MQTT connection status in database
+
+        Args:
+            status: One of 'connected', 'connecting', 'disconnected'
+            update_last_connected: If True, also update lastConnected timestamp
+            update_last_data_flow: If True, also update lastDataFlow timestamp
+        """
+        try:
+            cursor = self.db_conn.cursor()
+
+            # Build update query dynamically based on what needs updating
+            updates = ['"connectionStatus" = %s']
+            params = [status]
+
+            if update_last_connected:
+                updates.append('"lastConnected" = NOW()')
+
+            if update_last_data_flow:
+                updates.append('"lastDataFlow" = NOW()')
+
+            query = f'UPDATE "MqttConfig" SET {", ".join(updates)} WHERE id = 1'
+            cursor.execute(query, params)
+            self.db_conn.commit()
+            cursor.close()
+
+            logger.debug(f"📊 MQTT connection status updated: {status}")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to update MQTT connection status: {e}")
 
     def load_system_settings(self):
         """Load system settings from database (timezone, etc)"""
@@ -289,6 +323,13 @@ class MqttPublisher:
         except Exception as e:
             logger.warning(f"⚠️  Error during disconnect: {e}")
             self.mqtt_connected = False
+
+        # Reset data flow tracking - new config means we need fresh data
+        # This prevents showing "connected" based on stale data from old broker
+        self.last_data_flow_time = time.time()  # Start timeout from now
+        self.messages_published_since_config_change = 0  # Reset counter
+        self.update_mqtt_connection_status('connecting')
+        logger.info("🔄 Reset data flow tracking - status set to 'connecting'")
 
         # Reconnect with new config
         logger.info("🔌 Connecting with updated MQTT configuration...")
@@ -1170,6 +1211,10 @@ class MqttPublisher:
                 retain=False  # No retained messages for time-series data
             )
 
+            # Track successful data flow (for connection status fix)
+            self.last_data_flow_time = time.time()
+            self.messages_published_since_config_change += 1
+
             return True
         except Exception as e:
             logger.error(f"Failed to publish individual topic {point['mqttTopic']}: {e}")
@@ -1346,6 +1391,11 @@ class MqttPublisher:
 
         logger.info("✅ All configuration loaded - starting worker...")
 
+        # Set initial status to "connecting" before attempting MQTT connection
+        self.last_data_flow_time = time.time()  # Start timeout tracking from now
+        self.messages_published_since_config_change = 0
+        self.update_mqtt_connection_status('connecting')
+
         if not self.connect_mqtt():
             logger.error("Cannot start without MQTT connection")
             return 1
@@ -1400,6 +1450,21 @@ class MqttPublisher:
                 if time.time() - self._last_config_check >= 10:
                     self._check_config_changes()
                     self._last_config_check = time.time()
+
+                    # Update connection status based on data flow (not just MQTT callbacks)
+                    # This fixes the issue where status shows "connected" even for bogus broker IPs
+                    if self.last_data_flow_time:
+                        data_age = time.time() - self.last_data_flow_time
+
+                        if self.mqtt_connected and self.messages_published_since_config_change > 0 and data_age < 60:
+                            # Data is actively flowing - we're truly connected
+                            self.update_mqtt_connection_status('connected', update_last_connected=True, update_last_data_flow=True)
+                        elif data_age >= 60:
+                            # No data for 60+ seconds - mark as disconnected
+                            # This handles both: MQTT connected but no data, OR MQTT failed to connect (bogus IP)
+                            logger.warning(f"⚠️  No MQTT data flow for {int(data_age)}s - marking as disconnected")
+                            self.update_mqtt_connection_status('disconnected')
+                        # else: status stays "connecting" (waiting for first data, timeout not reached yet)
 
                 # Process any pending write commands from MQTT (queue-based approach)
                 await self.process_write_commands()

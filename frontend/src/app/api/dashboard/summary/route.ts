@@ -9,8 +9,22 @@ export async function GET() {
     // Get system settings
     const systemSettings = await prisma.systemSettings.findFirst();
 
-    // Get MQTT configuration
-    const mqttConfig = await prisma.mqttConfig.findFirst();
+    // Get MQTT configuration using raw SQL to bypass Prisma cache
+    // This ensures we get fresh connection status from the worker
+    const mqttConfigResult = await prisma.$queryRaw<Array<{
+      broker: string | null;
+      port: number;
+      connectionStatus: string;
+      lastConnected: Date | null;
+      lastDataFlow: Date | null;
+      tlsEnabled: boolean;
+      enabled: boolean;
+    }>>`
+      SELECT broker, port, "connectionStatus", "lastConnected", "lastDataFlow",
+             "tlsEnabled", enabled
+      FROM "MqttConfig" WHERE id = 1 LIMIT 1
+    `;
+    const mqttConfig = mqttConfigResult[0] || null;
 
     // Get device statistics
     const devices = await prisma.device.findMany({
@@ -107,13 +121,12 @@ export async function GET() {
       ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000)
       : null;
 
-    // Determine MQTT connection status
-    // MQTT is considered "connected" if:
-    // 1. Broker is configured (not default/placeholder)
-    // 2. Points are being updated recently (within 120 seconds)
+    // Determine MQTT connection status from database (set by worker based on actual data flow)
+    // This fixes the issue where status showed "connected" even for bogus broker IPs
     const isMqttConfigured = mqttConfig?.broker && mqttConfig.broker !== '10.0.60.3';
-    const isMqttReceivingData = secondsSinceUpdate !== null && secondsSinceUpdate <= 120;
-    const mqttConnected = isMqttConfigured && publishingPoints > 0 && isMqttReceivingData;
+    const mqttConnectionStatus = mqttConfig?.connectionStatus || 'disconnected';
+    const mqttConnected = mqttConnectionStatus === 'connected';
+    const mqttConnecting = mqttConnectionStatus === 'connecting';
 
     // Determine system status
     let systemStatus: 'operational' | 'degraded' | 'error';
@@ -121,10 +134,12 @@ export async function GET() {
       systemStatus = 'error'; // MQTT not configured
     } else if (publishingPoints === 0) {
       systemStatus = 'degraded'; // No points enabled for publishing
-    } else if (!isMqttReceivingData) {
-      systemStatus = 'degraded'; // MQTT configured but no recent data
+    } else if (mqttConnecting) {
+      systemStatus = 'degraded'; // MQTT connecting - waiting for data flow
+    } else if (!mqttConnected) {
+      systemStatus = 'degraded'; // MQTT disconnected
     } else {
-      systemStatus = 'operational'; // All good
+      systemStatus = 'operational'; // All good - data is flowing
     }
 
     // Check if first-run setup is needed
@@ -148,6 +163,8 @@ export async function GET() {
             broker: mqttConfig?.broker || 'Not configured',
             port: mqttConfig?.port || 1883,
             connected: mqttConnected,
+            connecting: mqttConnecting,
+            connectionStatus: mqttConnectionStatus,  // 'connected', 'connecting', 'disconnected'
             configured: isMqttConfigured,
           },
           system: {

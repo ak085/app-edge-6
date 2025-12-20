@@ -25,6 +25,8 @@ interface DashboardData {
       broker: string
       port: number
       connected: boolean
+      connecting: boolean
+      connectionStatus: 'connected' | 'connecting' | 'disconnected'
       configured: boolean
     }
     system: {
@@ -288,10 +290,28 @@ export default function DashboardPage() {
           </div>
 
           {/* Message Broker */}
-          <div className={`card bg-card border ${data.configuration.mqtt.connected ? 'border-green-200 border-l-4 border-l-green-500' : 'border-red-200 border-l-4 border-l-red-500'} p-5 rounded-lg`}>
+          <div className={`card bg-card border ${
+            data.configuration.mqtt.connectionStatus === 'connected'
+              ? 'border-green-200 border-l-4 border-l-green-500'
+              : data.configuration.mqtt.connectionStatus === 'connecting'
+              ? 'border-amber-200 border-l-4 border-l-amber-500'
+              : 'border-red-200 border-l-4 border-l-red-500'
+          } p-5 rounded-lg`}>
             <div className="flex items-center gap-2 mb-4">
-              <MessageSquare className={`w-5 h-5 ${data.configuration.mqtt.connected ? 'text-green-500' : 'text-red-500'}`} />
-              <h3 className={`font-semibold ${data.configuration.mqtt.connected ? 'text-green-700' : 'text-red-700'}`}>MQTT Broker</h3>
+              <MessageSquare className={`w-5 h-5 ${
+                data.configuration.mqtt.connectionStatus === 'connected'
+                  ? 'text-green-500'
+                  : data.configuration.mqtt.connectionStatus === 'connecting'
+                  ? 'text-amber-500'
+                  : 'text-red-500'
+              }`} />
+              <h3 className={`font-semibold ${
+                data.configuration.mqtt.connectionStatus === 'connected'
+                  ? 'text-green-700'
+                  : data.configuration.mqtt.connectionStatus === 'connecting'
+                  ? 'text-amber-700'
+                  : 'text-red-700'
+              }`}>MQTT Broker</h3>
             </div>
             <div className="space-y-3">
               <div>
@@ -305,10 +325,15 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs text-muted-foreground">Connection Status</p>
                 <div className="flex items-center gap-2">
-                  {data.configuration.mqtt.connected ? (
+                  {data.configuration.mqtt.connectionStatus === 'connected' ? (
                     <>
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <p className="text-sm font-semibold text-green-500">Connected</p>
+                    </>
+                  ) : data.configuration.mqtt.connectionStatus === 'connecting' ? (
+                    <>
+                      <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                      <p className="text-sm font-semibold text-amber-500">Connecting...</p>
                     </>
                   ) : (
                     <>
@@ -319,6 +344,9 @@ export default function DashboardPage() {
                 </div>
                 {!data.configuration.mqtt.configured && (
                   <p className="text-xs text-red-600 mt-1">⚠️ Configure broker in Settings</p>
+                )}
+                {data.configuration.mqtt.connectionStatus === 'connecting' && data.configuration.mqtt.configured && (
+                  <p className="text-xs text-amber-600 mt-1">Waiting for data flow confirmation...</p>
                 )}
               </div>
             </div>

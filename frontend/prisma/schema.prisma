@@ -134,6 +134,9 @@ model MqttConfig {
 
   // Status
   enabled           Boolean   @default(true)
+  connectionStatus  String    @default("disconnected")  // "connected", "connecting", "disconnected"
+  lastConnected     DateTime? // Last time connection was established
+  lastDataFlow      DateTime? // Last time data was actually published (for data-flow based status)
 
   // Timestamps
   createdAt         DateTime  @default(now())
