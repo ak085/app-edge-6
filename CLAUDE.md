@@ -169,9 +169,9 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 
 ## Repository
 
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge3.git
+- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-5.git
 - **Branch**: main
 
 ---
 
-**Last Updated**: 2025-12-18
+**Last Updated**: 2025-12-22
