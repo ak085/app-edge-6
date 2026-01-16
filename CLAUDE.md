@@ -127,7 +127,8 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
   "quality": "good",
   "dis": "Supply Air Temp",
   "haystackName": "site.ahu.12.sensor.temp.air.supply.actual",
-  "objectType": "analog-input"
+  "objectType": "analog-input",
+  "objectInstance": 435
 }
 ```
 
@@ -135,8 +136,11 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 |-------|-------------|
 | `timestamp` | UTC time (ISO 8601 with Z suffix) |
 | `tz` | Timezone offset from Settings (e.g., 8 for +08:00) |
-| `haystackName` | Full Haystack semantic name |
+| `haystackName` | Full Haystack semantic name (may not be unique) |
 | `objectType` | BACnet object type |
+| `objectInstance` | BACnet object instance (unique within device + objectType) |
+
+**Note:** Use `objectInstance` together with `haystackName` for unique identification when storing data. Points with identical haystack names can be differentiated by their object instance.
 
 ---
 

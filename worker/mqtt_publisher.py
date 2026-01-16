@@ -31,7 +31,7 @@ from bacpypes3.ipv4.app import NormalApplication
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import Address
 from bacpypes3.primitivedata import ObjectIdentifier
-from bacpypes3.apdu import ReadPropertyRequest
+from bacpypes3.apdu import ReadPropertyRequest, AbortPDU, RejectPDU, ErrorPDU
 from bacpypes3.basetypes import PropertyIdentifier
 
 # Configure logging
@@ -408,7 +408,8 @@ class MqttPublisher:
     def connect_mqtt(self):
         """Connect to MQTT broker (graceful degradation - doesn't fail startup)"""
         try:
-            self.mqtt_client = mqtt.Client(client_id=self.mqtt_client_id)
+            # Use CallbackAPIVersion.VERSION1 for compatibility with paho-mqtt 2.x
+            self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=self.mqtt_client_id)
             self.mqtt_client.on_connect = self.on_mqtt_connect
             self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
             self.mqtt_client.on_message = self.on_mqtt_message
@@ -485,6 +486,9 @@ class MqttPublisher:
             self.mqtt_connected = True
             logger.info("MQTT connection established successfully")
 
+            # Update database status to connected
+            self.update_mqtt_connection_status('connected', update_last_connected=True)
+
             # Subscribe to write command topic
             client.subscribe("bacnet/write/command", qos=1)
             logger.info("📝 Subscribed to bacnet/write/command topic")
@@ -497,12 +501,14 @@ class MqttPublisher:
                 logger.info(f"📥 Subscribed to override topic: {topic_pattern} (QoS {qos})")
         else:
             logger.error(f"MQTT connection failed with code {rc}")
+            self.update_mqtt_connection_status('disconnected')
 
     def on_mqtt_disconnect(self, client, userdata, rc):
         """MQTT disconnection callback"""
+        self.mqtt_connected = False
         if rc != 0:
             logger.warning(f"⚠️  MQTT unexpected disconnection (code {rc}), will auto-reconnect")
-            self.mqtt_connected = False
+            self.update_mqtt_connection_status('disconnected')
 
     def reconnect_mqtt(self):
         """Attempt to reconnect to MQTT broker if disconnected
@@ -965,8 +971,14 @@ class MqttPublisher:
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.5)  # Brief delay before retry
                 continue
+            except (AbortPDU, RejectPDU, ErrorPDU) as e:
+                # BACnet device responded with an error/abort/reject
+                logger.debug(f"  BACnet error on attempt {attempt + 1}: {e}")
+                if attempt < self.max_retries:
+                    await asyncio.sleep(0.5)
+                continue
             except Exception as e:
-                logger.debug(f"  Error on attempt {attempt + 1}: {e}")
+                logger.debug(f"  Error on attempt {attempt + 1}: {type(e).__name__}: {e}")
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.5)
                 continue
@@ -1201,7 +1213,8 @@ class MqttPublisher:
                 "quality": "good",
                 "dis": point['dis'],
                 "haystackName": point['haystackPointName'],
-                "objectType": point['objectType']
+                "objectType": point['objectType'],
+                "objectInstance": point['objectInstance']
             }
 
             self.mqtt_client.publish(
