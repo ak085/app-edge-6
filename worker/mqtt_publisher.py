@@ -247,7 +247,7 @@ class MqttPublisher:
 
                     # Subscription Configuration
                     self.mqtt_subscribe_enabled = result['subscribeEnabled'] or False
-                    self.mqtt_subscribe_topic_pattern = result['subscribeTopicPattern'] or 'bacnet/override/#'
+                    self.mqtt_subscribe_topic_pattern = result['subscribeTopicPattern'] or 'override/#'
                     self.mqtt_subscribe_qos = result['subscribeQos'] if result['subscribeQos'] is not None else 1
 
                     logger.info(f"📋 MQTT Configuration:")
@@ -495,7 +495,7 @@ class MqttPublisher:
 
             # Subscribe to override topic if enabled
             if hasattr(self, 'mqtt_subscribe_enabled') and self.mqtt_subscribe_enabled:
-                topic_pattern = getattr(self, 'mqtt_subscribe_topic_pattern', 'bacnet/override/#')
+                topic_pattern = getattr(self, 'mqtt_subscribe_topic_pattern', 'override/#')
                 qos = getattr(self, 'mqtt_subscribe_qos', 1)
                 client.subscribe(topic_pattern, qos=qos)
                 logger.info(f"📥 Subscribed to override topic: {topic_pattern} (QoS {qos})")
@@ -570,7 +570,7 @@ class MqttPublisher:
                 self.pending_write_commands.append(command)
                 logger.info(f"📝 Write command queued for processing (queue size: {len(self.pending_write_commands)})")
 
-            elif msg.topic.startswith("bacnet/override/"):
+            elif msg.topic.startswith("override/"):
                 # Handle setpoint override from ML/external system
                 self._handle_override_message(msg)
 
@@ -582,8 +582,8 @@ class MqttPublisher:
     def _handle_override_message(self, msg):
         """Process setpoint override message from ML/external system
 
-        Override topic format: bacnet/override/{site}/{equip}/{equipId}/{func}/{qty}/{substance}/{location}
-        Corresponding publish topic: bacnet/{site}/{equip}/{equipId}/{func}/{qty}/{substance}/{location}
+        Override topic format: override/{mqtt_topic}
+        e.g., override/klcc/ahu/12/sp/temp/air/supply/101
         """
         try:
             payload = json.loads(msg.payload.decode())
@@ -596,8 +596,8 @@ class MqttPublisher:
                 return
 
             # Convert override topic to publish topic to find the point
-            # bacnet/override/klcc/ahu/12/sp/temp/air/supply -> bacnet/klcc/ahu/12/sp/temp/air/supply
-            publish_topic = msg.topic.replace('bacnet/override/', 'bacnet/', 1)
+            # override/klcc/ahu/12/sp/temp/air/supply/101 -> klcc/ahu/12/sp/temp/air/supply/101
+            publish_topic = msg.topic.replace('override/', '', 1)
 
             # Find point by MQTT topic
             point = self._find_point_by_topic(publish_topic)
@@ -900,7 +900,7 @@ class MqttPublisher:
                     d.id as "deviceDbId", d."deviceId", d."deviceName", d."ipAddress", d.port
                 FROM "Point" p
                 JOIN "Device" d ON p."deviceId" = d.id
-                WHERE p."mqttPublish" = true AND p.enabled = true
+                WHERE p."mqttPublish" = true AND p.enabled = true AND d.enabled = true
                 ORDER BY d.id, p."objectInstance"
             """)
 

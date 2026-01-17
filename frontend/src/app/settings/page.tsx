@@ -60,7 +60,7 @@ export default function SettingsPage() {
     mqttClientKeyPath: null,
     // MQTT Subscription
     mqttSubscribeEnabled: false,
-    mqttSubscribeTopicPattern: "bacnet/override/#",
+    mqttSubscribeTopicPattern: "override/#",
     mqttSubscribeQos: 1,
   });
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function SettingsPage() {
           mqttClientKeyPath: data.settings.mqttClientKeyPath || null,
           // MQTT Subscription
           mqttSubscribeEnabled: data.settings.mqttSubscribeEnabled ?? false,
-          mqttSubscribeTopicPattern: data.settings.mqttSubscribeTopicPattern || "bacnet/override/#",
+          mqttSubscribeTopicPattern: data.settings.mqttSubscribeTopicPattern || "override/#",
           mqttSubscribeQos: data.settings.mqttSubscribeQos ?? 1,
         };
         setSettings(loadedSettings);
@@ -705,7 +705,7 @@ export default function SettingsPage() {
                     type="text"
                     value={settings.mqttSubscribeTopicPattern}
                     onChange={(e) => setSettings({ ...settings, mqttSubscribeTopicPattern: e.target.value })}
-                    placeholder="bacnet/override/#"
+                    placeholder="override/#"
                     className="input w-full bg-background border-2 border-input px-3 py-2 rounded-md font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -734,7 +734,7 @@ export default function SettingsPage() {
             {settings.mqttSubscribeEnabled && (
               <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                 <p className="text-sm text-purple-900">
-                  <strong>📥 Override Flow:</strong> External systems (ML/optimizer) publish to <code className="bg-purple-100 px-1 rounded">bacnet/override/...</code> topics.
+                  <strong>📥 Override Flow:</strong> External systems (ML/optimizer) publish to <code className="bg-purple-100 px-1 rounded">override/...</code> topics.
                   BacPipes subscribes and writes values to BACnet devices. Only points with <code className="bg-purple-100 px-1 rounded">sp</code> (setpoint) in position-4 of their Haystack name can be overwritten.
                 </p>
               </div>

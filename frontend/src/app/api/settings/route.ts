@@ -134,7 +134,7 @@ export async function PUT(request: Request) {
           tlsEnabled: body.mqttTlsEnabled ?? false,
           tlsInsecure: body.mqttTlsInsecure ?? false,
           subscribeEnabled: body.mqttSubscribeEnabled ?? false,
-          subscribeTopicPattern: body.mqttSubscribeTopicPattern ?? "bacnet/override/#",
+          subscribeTopicPattern: body.mqttSubscribeTopicPattern ?? "override/#",
           subscribeQos: body.mqttSubscribeQos ?? 1,
         },
       });

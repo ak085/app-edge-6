@@ -304,6 +304,28 @@ def save_to_database(job_id: str, devices: List[Tuple[str, int]], points: List[D
     try:
         devices_saved = 0
         points_saved = 0
+        devices_deleted = 0
+
+        # Get list of device IDs found in this discovery
+        found_device_ids = [device_id for _, device_id in devices]
+
+        # Delete devices that were NOT found in this discovery
+        # (Points are deleted automatically via CASCADE)
+        if found_device_ids:
+            # Delete devices not in the found list
+            cursor.execute(
+                '''DELETE FROM "Device" WHERE "deviceId" NOT IN %s RETURNING "deviceId"''',
+                (tuple(found_device_ids),)
+            )
+        else:
+            # No devices found - delete all existing devices
+            cursor.execute('''DELETE FROM "Device" RETURNING "deviceId"''')
+
+        deleted_rows = cursor.fetchall()
+        devices_deleted = len(deleted_rows)
+        if devices_deleted > 0:
+            deleted_ids = [row[0] for row in deleted_rows]
+            print(f"🗑️  Removed {devices_deleted} offline device(s): {deleted_ids}")
 
         # Group points by device
         device_points = {}

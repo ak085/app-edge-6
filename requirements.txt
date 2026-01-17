@@ -1,0 +1,22 @@
+# BacPipes - BACnet-to-MQTT Edge Gateway
+# Python dependencies for Reflex app
+
+# Web Framework
+reflex>=0.6.0
+
+# Database
+sqlmodel>=0.0.14
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.0
+
+# Authentication
+bcrypt>=4.1.0
+
+# BACnet
+BACpypes3>=0.0.102
+
+# MQTT
+paho-mqtt>=2.1.0
+
+# Utilities
+pytz>=2024.1

@@ -1,8 +1,10 @@
 # BacPipes - AI Development Context
 
-## Current Status (December 2025)
+## Current Status (January 2026)
 
-**Production Ready**: BACnet-to-MQTT edge gateway with web-based configuration.
+**Production Ready**: BACnet-to-MQTT edge gateway - now a pure Python Reflex application.
+
+**Architecture Change**: Converted from Next.js + Python worker to single Python Reflex app.
 
 **Core Features**:
 - Web UI authentication with session management
@@ -18,101 +20,154 @@
 - Database-driven configuration (no .env editing needed)
 - Minute-aligned polling (starts at second :00)
 - UTC timestamps with timezone offset for ML applications
+- Headless mode (worker only, no web UI)
 
 ---
 
-## Architecture
+## Architecture (Reflex Version)
 
 ```
 ┌─────────────────────────────────────────────┐
-│ BacPipes (Docker Compose)                   │
+│ BacPipes (Single Python App)                │
 ├─────────────────────────────────────────────┤
-│  Frontend (Next.js 15) - Port 3001          │
-│  ├─ Login (session-based auth)              │
-│  ├─ Dashboard                               │
-│  ├─ Discovery                               │
-│  ├─ Points (Haystack tagging)               │
-│  └─ Settings (Master PIN, password)         │
+│  Reflex Framework                           │
+│  ├─ Frontend (React via Reflex)             │
+│  │   ├─ Login (session-based auth)          │
+│  │   ├─ Dashboard (tabs UI)                 │
+│  │   │   ├─ Dashboard tab                   │
+│  │   │   ├─ Discovery tab                   │
+│  │   │   ├─ Points tab                      │
+│  │   │   └─ Settings tab                    │
+│  │   └─ Setup Wizard                        │
+│  │                                          │
+│  ├─ Backend (Reflex State)                  │
+│  │   ├─ AuthState                           │
+│  │   ├─ DashboardState                      │
+│  │   ├─ DiscoveryState                      │
+│  │   ├─ PointsState                         │
+│  │   ├─ SettingsState                       │
+│  │   └─ WorkerState                         │
+│  │                                          │
+│  └─ Worker (Lifespan Task)                  │
+│      ├─ BACnet polling (BACpypes3)          │
+│      ├─ MQTT publishing (paho-mqtt)         │
+│      └─ Write command handling              │
 │                                             │
 │  PostgreSQL 15 - Port 5434                  │
-│  └─ Devices, Points, Config, Auth           │
-│                                             │
-│  BACnet Worker (Python/BACpypes3)           │
-│  ├─ Polls BACnet devices                    │
-│  ├─ Publishes to MQTT                       │
-│  └─ Handles write commands                  │
+│  └─ SQLModel ORM                            │
 └─────────────────────────────────────────────┘
                   ↓ MQTT
 ┌─────────────────────────────────────────────┐
 │ External MQTT Broker                        │
-│ - Supports TLS/SSL                          │
-│ - Supports authentication                   │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## Authentication System
+## Project Structure
 
-### Login
-- Default credentials: `admin` / `admin`
-- Session-based with iron-session (encrypted cookies)
-- 3-hour session timeout
-- All pages/APIs protected except `/login`
-
-### Master PIN
-- 4-6 digit PIN protects password changes
-- Set via Settings page or CLI
-- Only system administrator should know the PIN
-- Prevents unauthorized password changes by other users
-
-### CLI Recovery Commands
-
-```bash
-# Reset password to "admin" (if forgotten)
-docker exec bacpipes-frontend node scripts/reset-password.js
-
-# Reset Master PIN (if forgotten)
-docker exec bacpipes-frontend node scripts/reset-pin.js
-
-# Set Master PIN directly (remote management)
-docker exec bacpipes-frontend node scripts/set-pin.js 1234
 ```
-
----
-
-## Technology Stack
-
-- **Frontend**: Next.js 15 + TypeScript + Shadcn/ui
-- **Auth**: iron-session + bcryptjs
-- **Database**: PostgreSQL 15
-- **Worker**: Python 3.10 + BACpypes3 + paho-mqtt
-- **Deployment**: Docker Compose
+bacpipes/
+├── bacpipes/                     # Reflex app package
+│   ├── __init__.py
+│   ├── __main__.py               # CLI entry (--headless support)
+│   ├── bacpipes.py               # Main app entry, routes
+│   │
+│   ├── models/                   # SQLModel database models
+│   │   ├── device.py
+│   │   ├── point.py
+│   │   ├── mqtt_config.py
+│   │   ├── system_settings.py
+│   │   ├── discovery_job.py
+│   │   ├── write_history.py
+│   │   └── error_log.py
+│   │
+│   ├── state/                    # Reflex State classes
+│   │   ├─ auth_state.py
+│   │   ├── dashboard_state.py
+│   │   ├── discovery_state.py
+│   │   ├── points_state.py
+│   │   ├── settings_state.py
+│   │   └── worker_state.py
+│   │
+│   ├── pages/                    # Page components
+│   │   ├── login.py
+│   │   ├── dashboard.py
+│   │   └── setup_wizard.py
+│   │
+│   ├── components/               # Reusable UI
+│   │   ├── layout.py
+│   │   ├── status_card.py
+│   │   ├── point_table.py
+│   │   └── point_editor.py
+│   │
+│   ├── worker/                   # BACnet/MQTT worker
+│   │   ├── bacnet_client.py
+│   │   ├── mqtt_client.py
+│   │   ├── discovery.py
+│   │   ├── polling.py
+│   │   └── write_handler.py
+│   │
+│   └── utils/
+│       ├── auth.py
+│       └── network.py
+│
+├── rxconfig.py                   # Reflex config
+├── requirements.txt
+├── Dockerfile
+└── docker-compose.new.yml
+```
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Deploy
-docker compose up -d
+# Development
+pip install -r requirements.txt
+reflex run
+
+# Run with web UI
+python -m bacpipes
+
+# Run headless (worker only)
+python -m bacpipes --headless
+
+# Docker deployment
+docker compose -f docker-compose.new.yml up -d
 
 # Access UI
-http://<your-ip>:3001
-
-# View logs
-docker compose logs -f bacnet-worker
-
-# Restart worker
-docker compose restart bacnet-worker
+http://localhost:3000
 
 # Database access
 docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
-
-# Recovery commands
-docker exec bacpipes-frontend node scripts/reset-password.js
-docker exec bacpipes-frontend node scripts/reset-pin.js
 ```
+
+---
+
+## Technology Stack
+
+- **Framework**: Reflex (Python full-stack)
+- **Frontend**: React (via Reflex, auto-generated)
+- **Backend**: Reflex State + Lifespan Tasks
+- **Database**: PostgreSQL 15 with SQLModel ORM
+- **Auth**: bcrypt + session-based
+- **BACnet**: BACpypes3
+- **MQTT**: paho-mqtt
+
+---
+
+## Authentication
+
+### Login
+- Default credentials: `admin` / `admin`
+- Session-based with 3-hour timeout
+- All pages protected except `/login`
+
+### Master PIN
+- 4-6 digit PIN protects password changes
+- Set via Settings tab
+- Prevents unauthorized password changes
 
 ---
 
@@ -140,7 +195,7 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 | `objectType` | BACnet object type |
 | `objectInstance` | BACnet object instance (unique within device + objectType) |
 
-**Note:** Use `objectInstance` together with `haystackName` for unique identification when storing data. Points with identical haystack names can be differentiated by their object instance.
+**Note:** Use `objectInstance` together with `haystackName` for unique identification when storing data.
 
 ---
 
@@ -148,16 +203,13 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 
 | File | Purpose |
 |------|---------|
-| `frontend/src/lib/session.ts` | Session configuration |
-| `frontend/src/lib/auth.ts` | Password hashing (bcrypt) |
-| `frontend/src/middleware.ts` | Auth middleware |
-| `frontend/src/app/api/auth/*` | Auth API routes |
-| `frontend/scripts/*.js` | CLI recovery scripts |
-| `worker/mqtt_publisher.py` | Main BACnet polling and MQTT publishing |
-| `worker/discovery.py` | BACnet device/point discovery |
-| `frontend/src/app/page.tsx` | Dashboard |
-| `frontend/src/app/settings/page.tsx` | Settings UI |
-| `frontend/prisma/schema.prisma` | Database schema |
+| `bacpipes/bacpipes.py` | Main Reflex app entry |
+| `bacpipes/state/*.py` | State management |
+| `bacpipes/pages/dashboard.py` | Main UI with tabs |
+| `bacpipes/worker/polling.py` | BACnet polling loop |
+| `bacpipes/worker/discovery.py` | BACnet discovery |
+| `bacpipes/models/*.py` | SQLModel ORM models |
+| `rxconfig.py` | Database configuration |
 
 ---
 
@@ -165,9 +217,24 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 
 | Port | Service |
 |------|---------|
-| 3001 | Frontend (Web UI) |
+| 3000 | Reflex Frontend |
+| 8000 | Reflex Backend |
 | 5434 | PostgreSQL |
 | 47808 | BACnet/IP (UDP) |
+
+---
+
+## Database Models
+
+| Model | Table | Purpose |
+|-------|-------|---------|
+| Device | Device | BACnet devices |
+| Point | Point | BACnet objects + Haystack tags |
+| MqttConfig | MqttConfig | MQTT broker settings |
+| SystemSettings | SystemSettings | Auth + BACnet config |
+| DiscoveryJob | DiscoveryJob | Scan tracking |
+| WriteHistory | WriteHistory | Write audit log |
+| ErrorLog | ErrorLog | Error tracking |
 
 ---
 
@@ -178,4 +245,4 @@ docker exec bacpipes-frontend node scripts/reset-pin.js
 
 ---
 
-**Last Updated**: 2025-12-22
+**Last Updated**: 2026-01-16
