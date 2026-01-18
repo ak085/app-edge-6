@@ -129,8 +129,9 @@ The Master PIN protects password changes. Only the system administrator should k
 |-----------|---------|
 | Start | `docker compose up -d` |
 | Stop | `docker compose down` |
+| Restart after shutdown | `docker compose up -d` |
+| Restart running container | `docker compose restart bacpipes` |
 | Logs | `docker compose logs -f bacpipes` |
-| Restart | `docker compose restart bacpipes` |
 | Rebuild | `docker compose build && docker compose up -d` |
 | Reset (delete data) | `docker compose down -v` |
 
