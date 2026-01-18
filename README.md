@@ -1,9 +1,9 @@
 # BacPipes - BACnet to MQTT Edge Gateway
 
-**Production-ready BACnet-to-MQTT bridge with web-based configuration**
+**Production-ready BACnet-to-MQTT bridge built with Python Reflex**
 
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](docker-compose.yml)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
+[![Reflex](https://img.shields.io/badge/Reflex-Python-purple)](https://reflex.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?logo=postgresql)](https://www.postgresql.org/)
 [![Python](https://img.shields.io/badge/Python-3.10-yellow?logo=python)](https://www.python.org/)
 
@@ -13,12 +13,12 @@
 
 ```bash
 # Clone and deploy
-git clone http://10.0.10.2:30008/ak101/app-edge3.git bacpipes
+git clone http://10.0.10.2:30008/ak101/app-edge-6.git bacpipes
 cd bacpipes
 docker compose up -d
 
 # Access UI
-# http://<your-ip>:3001
+# http://<your-ip>:3000
 # Default login: admin / admin
 ```
 
@@ -42,22 +42,27 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 
 ```
 ┌─────────────────────────────────────────────┐
-│ BacPipes (Docker Compose)                   │
+│ BacPipes (Single Python App)                │
 ├─────────────────────────────────────────────┤
-│  Frontend (Next.js) - Port 3001             │
-│  ├─ Login (session-based auth)              │
-│  ├─ Dashboard (system status)               │
-│  ├─ Discovery (BACnet scan)                 │
-│  ├─ Points (Haystack tagging)               │
-│  └─ Settings (config, password, PIN)        │
+│  Reflex Framework                           │
+│  ├─ Frontend (React via Reflex) - Port 3000 │
+│  │   ├─ Login (session-based auth)          │
+│  │   ├─ Dashboard (tabs UI)                 │
+│  │   │   ├─ Dashboard tab                   │
+│  │   │   ├─ Discovery tab                   │
+│  │   │   ├─ Points tab                      │
+│  │   │   └─ Settings tab                    │
+│  │   └─ Setup Wizard                        │
+│  │                                          │
+│  ├─ Backend (Reflex State) - Port 8000      │
+│  │   └─ SQLModel ORM                        │
+│  │                                          │
+│  └─ Worker (Lifespan Task)                  │
+│      ├─ BACnet polling (BACpypes3)          │
+│      ├─ MQTT publishing (paho-mqtt)         │
+│      └─ Write command handling              │
 │                                             │
-│  PostgreSQL - Port 5434                     │
-│  └─ Devices, Points, Config, Auth           │
-│                                             │
-│  BACnet Worker (Python/BACpypes3)           │
-│  ├─ Polls BACnet devices                    │
-│  ├─ Publishes to MQTT                       │
-│  └─ Handles write commands                  │
+│  PostgreSQL 15 - Port 5432                  │
 └─────────────────────────────────────────────┘
                   ↓ MQTT publish
 ┌─────────────────────────────────────────────┐
@@ -85,6 +90,7 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 | **Setup Wizard** | Zero-config first-run experience |
 | **Minute-Aligned Polling** | Data starts at second :00 for synchronization |
 | **Timezone Support** | UTC timestamps with `tz` offset for ML applications |
+| **Headless Mode** | Run worker only without web UI |
 
 ---
 
@@ -100,26 +106,11 @@ The Master PIN protects password changes. Only the system administrator should k
 - 4-6 digits
 - Required when changing the password
 
-### Recovery Commands (via SSH)
-
-If you forget your credentials, use these CLI commands:
-
-```bash
-# Reset password to "admin"
-docker exec bacpipes-frontend node scripts/reset-password.js
-
-# Reset Master PIN (removes it)
-docker exec bacpipes-frontend node scripts/reset-pin.js
-
-# Set Master PIN directly
-docker exec bacpipes-frontend node scripts/set-pin.js 1234
-```
-
 ---
 
 ## First-Time Setup
 
-1. **Access Dashboard**: http://your-ip:3001
+1. **Access Dashboard**: http://your-ip:3000
 2. **Login**: Use `admin` / `admin`
 3. **Complete Setup Wizard**:
    - Select BACnet network interface (auto-detected)
@@ -138,12 +129,10 @@ docker exec bacpipes-frontend node scripts/set-pin.js 1234
 |-----------|---------|
 | Start | `docker compose up -d` |
 | Stop | `docker compose down` |
-| Logs | `docker compose logs -f bacnet-worker` |
-| Restart worker | `docker compose restart bacnet-worker` |
+| Logs | `docker compose logs -f bacpipes` |
+| Restart | `docker compose restart bacpipes` |
 | Rebuild | `docker compose build && docker compose up -d` |
 | Reset (delete data) | `docker compose down -v` |
-| Reset password | `docker exec bacpipes-frontend node scripts/reset-password.js` |
-| Reset PIN | `docker exec bacpipes-frontend node scripts/reset-pin.js` |
 
 ---
 
@@ -178,7 +167,8 @@ bacnet/klcc/ahu_12/sensor/temp/air/supply/actual/presentValue
   "quality": "good",
   "dis": "Supply Air Temp",
   "haystackName": "site.ahu.12.sensor.temp.air.supply.actual",
-  "objectType": "analog-input"
+  "objectType": "analog-input",
+  "objectInstance": 435
 }
 ```
 
@@ -188,6 +178,18 @@ bacnet/klcc/ahu_12/sensor/temp/air/supply/actual/presentValue
 | `tz` | Timezone offset from Settings (e.g., 8 for +08:00) |
 | `haystackName` | Full Haystack semantic name |
 | `objectType` | BACnet object type |
+| `objectInstance` | BACnet object instance (unique within device + objectType) |
+
+---
+
+## Port Allocation
+
+| Port | Service |
+|------|---------|
+| 3000 | Web UI (Reflex Frontend) |
+| 8000 | Reflex Backend |
+| 5432 | PostgreSQL |
+| 47808 | BACnet/IP (UDP) |
 
 ---
 
@@ -207,32 +209,22 @@ All configuration is done via the web UI at `/settings`:
 
 ---
 
-## Port Allocation
-
-| Port | Service |
-|------|---------|
-| 3001 | Web UI (Frontend) |
-| 5434 | PostgreSQL |
-| 47808 | BACnet/IP (UDP) |
-
----
-
 ## Troubleshooting
 
 ### Can't Login
 1. Try default credentials: `admin` / `admin`
-2. Reset password: `docker exec bacpipes-frontend node scripts/reset-password.js`
+2. Check container logs: `docker compose logs bacpipes`
 
 ### Worker Not Starting
 ```bash
-docker compose logs bacnet-worker
+docker compose logs -f bacpipes
 ```
 Common: Database not ready. Wait 30s and check again.
 
 ### MQTT Shows Disconnected
 1. Check broker IP in Settings
 2. Test: `ping <broker-ip>`
-3. Restart: `docker compose restart bacnet-worker`
+3. Restart: `docker compose restart bacpipes`
 
 ### Discovery Finds No Devices
 1. Verify BACnet IP matches your network interface
@@ -248,23 +240,27 @@ See `CLAUDE.md` for detailed development context.
 **Project Structure:**
 ```
 bacpipes/
-├── docker-compose.yml          # Core services (frontend, postgres, worker)
-├── frontend/                   # Next.js web app
-│   ├── src/app/               # Pages and API routes
-│   ├── src/lib/               # Auth, session, utilities
-│   ├── scripts/               # CLI recovery tools
-│   └── prisma/                # Database schema
-└── worker/                     # Python BACnet worker
-    └── mqtt_publisher.py      # Main polling loop
+├── docker-compose.yml          # Docker deployment
+├── Dockerfile                  # Container build
+├── requirements.txt            # Python dependencies
+├── rxconfig.py                 # Reflex configuration
+└── bacpipes/                   # Reflex Python app
+    ├── bacpipes.py             # Main app entry
+    ├── models/                 # SQLModel database models
+    ├── state/                  # Reflex State classes
+    ├── pages/                  # Page components
+    ├── components/             # Reusable UI components
+    ├── worker/                 # BACnet/MQTT worker
+    └── utils/                  # Utilities
 ```
 
 ---
 
 ## Repository
 
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge3.git
+- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-6.git
 
 ---
 
-**Last Updated:** December 2025
+**Last Updated:** January 2026
 **Status:** Production-ready

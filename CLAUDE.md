@@ -115,7 +115,7 @@ bacpipes/
 ├── rxconfig.py                   # Reflex config
 ├── requirements.txt
 ├── Dockerfile
-└── docker-compose.new.yml
+└── docker-compose.yml
 ```
 
 ---
@@ -134,7 +134,7 @@ python -m bacpipes
 python -m bacpipes --headless
 
 # Docker deployment
-docker compose -f docker-compose.new.yml up -d
+docker compose up -d
 
 # Access UI
 http://localhost:3000
@@ -240,9 +240,9 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 
 ## Repository
 
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-5.git
+- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-6.git
 - **Branch**: main
 
 ---
 
-**Last Updated**: 2026-01-16
+**Last Updated**: 2026-01-18

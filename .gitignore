@@ -1,4 +1,4 @@
-# BacPipes - Git Ignore File
+# BacPipes - Git Ignore File (Reflex App)
 
 # ============================================
 # Python
@@ -60,24 +60,9 @@ coverage.xml
 .python-version
 
 # ============================================
-# Node.js / Frontend
-# ============================================
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# Next.js
-.next/
-out/
-build/
-
-# ============================================
 # Reflex
 # ============================================
 .web/
-__pycache__/
 *.db
 
 # ============================================
@@ -104,11 +89,6 @@ docker-compose.override.yml
 *.sqlite
 *.sqlite3
 
-# Prisma
-frontend/prisma/migrations/**/migration.sql.bak
-# Allow Prisma migration SQL files
-!frontend/prisma/migrations/**/migration.sql
-
 # ============================================
 # Environment & Secrets
 # ============================================
@@ -130,9 +110,6 @@ config/.secrets
 # ============================================
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # ============================================
 # IDE / Editor
@@ -184,7 +161,6 @@ config/discovered_points_*.csv
 
 # JSON exports (backup files)
 config/production_json/*.json
-trash/database_exports/*.json
 
 # Temporary files
 tmp/
@@ -216,18 +192,3 @@ coverage/
 # Keep CLAUDE.md, README.md, etc. but ignore generated docs
 docs/_build/
 site/
-
-# ============================================
-# Keep Important Files
-# ============================================
-# These files SHOULD be committed:
-# - CLAUDE.md (project documentation)
-# - README.md
-# - requirements.txt (Python dependencies)
-# - setup.py (Python package setup)
-# - docker-compose.yml
-# - Dockerfile(s)
-# - config/bacnet_config.yaml (configuration template)
-# - scripts/*.py (all Python scripts)
-# - frontend/package.json
-# - frontend/prisma/schema.prisma
