@@ -305,7 +305,12 @@ async def save_results(engine, job_id: str, devices: List[Tuple[str, int]], poin
                     ).first()
 
                     if existing_point:
-                        existing_point.pointName = point_data.get('objectName', 'Unknown')
+                        object_name = point_data.get('objectName', 'Unknown')
+                        # Set bacnetName if not already set (first discovery after field was added)
+                        if not existing_point.bacnetName:
+                            existing_point.bacnetName = object_name
+                        # Always update pointName to current BACnet name
+                        existing_point.pointName = object_name
                         existing_point.description = point_data.get('description')
                         existing_point.units = point_data.get('units')
                         existing_point.lastValue = point_data.get('presentValue')
@@ -313,11 +318,13 @@ async def save_results(engine, job_id: str, devices: List[Tuple[str, int]], poin
                         existing_point.updatedAt = datetime.now()
                         session.add(existing_point)
                     else:
+                        object_name = point_data.get('objectName', 'Unknown')
                         new_point = Point(
                             deviceId=db_device_id,
                             objectType=point_data.get('object_type', ''),
                             objectInstance=point_data.get('object_instance', 0),
-                            pointName=point_data.get('objectName', 'Unknown'),
+                            bacnetName=object_name,  # Set original (immutable)
+                            pointName=object_name,   # Set current
                             description=point_data.get('description'),
                             units=point_data.get('units'),
                             enabled=True,

@@ -53,7 +53,7 @@
 │      ├─ MQTT publishing (paho-mqtt)         │
 │      └─ Write command handling              │
 │                                             │
-│  PostgreSQL 15 - Port 5434                  │
+│  PostgreSQL 15 - Port 5432                  │
 │  └─ SQLModel ORM                            │
 └─────────────────────────────────────────────┘
                   ↓ MQTT
@@ -219,7 +219,7 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 |------|---------|
 | 3000 | Reflex Frontend |
 | 8000 | Reflex Backend |
-| 5434 | PostgreSQL |
+| 5432 | PostgreSQL |
 | 47808 | BACnet/IP (UDP) |
 
 ---

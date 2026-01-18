@@ -49,7 +49,11 @@ class MQTTClient:
         self.messages_published = 0
 
     def connect(self) -> bool:
-        """Connect to MQTT broker."""
+        """Connect to MQTT broker.
+
+        Returns:
+            True if connected successfully, False otherwise.
+        """
         try:
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
@@ -71,20 +75,21 @@ class MQTTClient:
             self.client.connect(self.broker, self.port, 60)
             self.client.loop_start()
 
-            # Wait for connection
-            time.sleep(2)
+            # Wait for connection with timeout (5 seconds max)
+            for _ in range(50):
+                if self.connected:
+                    logger.info(f"Connected to MQTT broker {self.broker}:{self.port}")
+                    return True
+                time.sleep(0.1)
 
-            if self.connected:
-                logger.info(f"Connected to MQTT broker {self.broker}:{self.port}")
-            else:
-                logger.warning(f"MQTT broker unreachable at {self.broker}:{self.port}")
-
-            return True
+            # Connection timed out
+            logger.warning(f"MQTT broker connection timeout: {self.broker}:{self.port}")
+            return False
 
         except Exception as e:
             logger.warning(f"Failed to connect to MQTT broker: {e}")
             self.connected = False
-            return True  # Graceful degradation
+            return False
 
     def _configure_tls(self):
         """Configure TLS for MQTT connection."""
@@ -164,8 +169,14 @@ class MQTTClient:
         if self.client:
             try:
                 self.client.reconnect()
-                time.sleep(1)
-                return self.connected
+                # Wait for connection with timeout (5 seconds max)
+                for _ in range(50):
+                    if self.connected:
+                        logger.info(f"Reconnected to MQTT broker {self.broker}:{self.port}")
+                        return True
+                    time.sleep(0.1)
+                logger.warning(f"MQTT reconnection timeout: {self.broker}:{self.port}")
+                return False
             except Exception as e:
                 logger.warning(f"MQTT reconnection failed: {e}")
                 return False

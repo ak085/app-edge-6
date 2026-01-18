@@ -346,6 +346,7 @@ class PointsState(rx.State):
                 device = session.get(Device, point.deviceId)
                 self.points.append({
                     "id": point.id,
+                    "bacnetName": point.bacnetName or point.pointName,  # Fallback for existing points
                     "pointName": point.pointName,
                     "objectType": point.objectType,
                     "objectInstance": point.objectInstance,
@@ -418,10 +419,6 @@ class PointsState(rx.State):
         self.filter_mqtt_status = status
         async for _ in self.load_points():
             pass
-
-    def set_mqtt_filter(self, mqtt_only: bool):
-        """Set MQTT filter (legacy compatibility)."""
-        self.filter_mqtt_status = "MQTT Enabled" if mqtt_only else "All"
 
     async def set_search_query(self, query: str):
         """Set search query and reload points."""

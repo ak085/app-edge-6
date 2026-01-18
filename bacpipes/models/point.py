@@ -23,7 +23,8 @@ class Point(SQLModel, table=True):
     deviceId: int = Field(foreign_key="Device.id", index=True)
     objectType: str  # e.g., "analog-input", "analog-output", "binary-input"
     objectInstance: int  # BACnet object instance number
-    pointName: str  # BACnet object name
+    bacnetName: Optional[str] = None  # Original BACnet object name (immutable after discovery)
+    pointName: str  # Current BACnet object name (may change on re-discovery)
     description: Optional[str] = None
     units: Optional[str] = None  # Engineering units (e.g., "degreesCelsius")
 

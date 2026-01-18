@@ -459,7 +459,10 @@ class PollingWorker:
 
         # Connect to MQTT
         self.update_mqtt_status("connecting")
-        self.mqtt_client.connect()
+        if self.mqtt_client.connect():
+            self.update_mqtt_status("connected")
+        else:
+            self.update_mqtt_status("disconnected")
 
         # Build topic-to-point map for overrides
         self.build_topic_to_point_map()
@@ -505,14 +508,19 @@ class PollingWorker:
                     # Reconnect MQTT
                     if self.mqtt_client:
                         self.mqtt_client.disconnect()
-                    self.mqtt_client.connect()
+                    self.update_mqtt_status("connecting")
+                    if self.mqtt_client.connect():
+                        self.update_mqtt_status("connected")
+                    else:
+                        self.update_mqtt_status("disconnected")
 
                     # Rebuild topic map
                     self.build_topic_to_point_map()
 
-                # Reconnect MQTT if needed
+                # Reconnect MQTT if needed (don't set "connecting" for periodic retries)
                 if self.mqtt_client and not self.mqtt_client.connected:
-                    self.mqtt_client.reconnect()
+                    if self.mqtt_client.reconnect():
+                        self.update_mqtt_status("connected")
 
                 # Process any pending override writes
                 await self.process_pending_overrides()

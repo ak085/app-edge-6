@@ -89,7 +89,7 @@ def point_editor_dialog() -> rx.Component:
                 rx.hstack(
                     rx.text(PointsState.selected_point.get("deviceName", ""), color="gray"),
                     rx.text(" - "),
-                    rx.text(PointsState.selected_point.get("pointName", ""), weight="medium"),
+                    rx.text(PointsState.selected_point.get("bacnetName", ""), weight="medium"),  # Original BACnet name
                     spacing="1",
                 ),
             ),

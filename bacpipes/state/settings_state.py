@@ -511,8 +511,11 @@ class SettingsState(rx.State):
                 session.commit()
 
     def shutdown_gui(self):
-        """Shutdown the web GUI. Worker will continue running."""
+        """Shutdown the entire application (GUI + Worker).
+
+        Note: The worker runs as a lifespan task in the same process as the GUI,
+        so SIGTERM kills both. Restart with: docker compose up -d
+        """
         import os
         import signal
-        # Send SIGTERM to the current process to trigger graceful shutdown
         os.kill(os.getpid(), signal.SIGTERM)
