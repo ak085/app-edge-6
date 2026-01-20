@@ -140,7 +140,7 @@ docker compose up -d
 http://localhost:3000
 
 # Database access
-docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
+docker exec -it bacpipes-postgres psql -U bacpipes -d bacpipes
 ```
 
 ---
@@ -234,15 +234,6 @@ docker exec -it bacpipes-postgres psql -U anatoli -d bacpipes
 | SystemSettings | SystemSettings | Auth + BACnet config |
 | DiscoveryJob | DiscoveryJob | Scan tracking |
 | WriteHistory | WriteHistory | Write audit log |
-| ErrorLog | ErrorLog | Error tracking |
-
 ---
 
-## Repository
-
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-6.git
-- **Branch**: main
-
----
-
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-01-20

@@ -151,7 +151,7 @@ async def run_discovery_async(job_id: str):
     """Run BACnet discovery asynchronously."""
     db_url = os.getenv(
         "DATABASE_URL",
-        "postgresql://anatoli@localhost:5432/bacpipes"
+        "postgresql://bacpipes@localhost:5432/bacpipes"
     )
     engine = create_engine(db_url)
 
@@ -237,17 +237,14 @@ async def save_results(engine, job_id: str, devices: List[Tuple[str, int]], poin
         devices_saved = 0
         points_saved = 0
 
-        # Get found device IDs
-        found_device_ids = [device_id for _, device_id in devices]
-
-        # Delete devices not found
-        if found_device_ids:
-            existing = session.exec(
-                select(Device).where(Device.deviceId.notin_(found_device_ids))
-            ).all()
-            for device in existing:
-                session.delete(device)
-            session.commit()
+        # Clear ALL existing devices before saving new results
+        # (cascade_delete=True on Device.points will delete associated Points and WriteHistory)
+        logger.info("Clearing all existing devices and points before saving new discovery data")
+        all_devices = session.exec(select(Device)).all()
+        for device in all_devices:
+            session.delete(device)
+        session.commit()
+        logger.info(f"Deleted {len(all_devices)} existing devices")
 
         # Group points by device
         device_points = {}

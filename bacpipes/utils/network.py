@@ -59,17 +59,3 @@ def get_network_interfaces() -> List[Dict[str, str]]:
             interfaces.append({"name": "default", "ip": local_ip})
 
     return interfaces
-
-
-def is_port_in_use(port: int, ip_address: str = "") -> bool:
-    """Check if a UDP port is currently in use.
-
-    Binds to wildcard (0.0.0.0) to work from inside Docker container.
-    """
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("0.0.0.0", port))
-            return False  # Port is available
-    except OSError:
-        return True  # Port is in use

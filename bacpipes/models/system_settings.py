@@ -24,7 +24,7 @@ class SystemSettings(SQLModel, table=True):
     discoveryTimeout: int = Field(default=15)  # Seconds
 
     # System
-    timezone: str = Field(default="Asia/Kuala_Lumpur")
+    timezone: str = Field(default="UTC")
     defaultPollInterval: int = Field(default=60)  # Seconds
     configRefreshInterval: int = Field(default=60)  # Seconds
     dashboardRefresh: int = Field(default=10)  # Seconds

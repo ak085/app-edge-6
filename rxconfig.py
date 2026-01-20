@@ -6,7 +6,7 @@ import reflex as rx
 # Get database URL from environment or use default
 db_url = os.environ.get(
     "DATABASE_URL",
-    "postgresql://anatoli@localhost:5432/bacpipes"
+    "postgresql://bacpipes@localhost:5432/bacpipes"
 )
 
 config = rx.Config(

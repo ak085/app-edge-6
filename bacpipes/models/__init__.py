@@ -6,7 +6,6 @@ from .mqtt_config import MqttConfig
 from .system_settings import SystemSettings
 from .discovery_job import DiscoveryJob
 from .write_history import WriteHistory
-from .error_log import ErrorLog
 
 __all__ = [
     "Device",
@@ -15,5 +14,4 @@ __all__ = [
     "SystemSettings",
     "DiscoveryJob",
     "WriteHistory",
-    "ErrorLog",
 ]

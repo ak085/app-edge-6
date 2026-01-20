@@ -38,8 +38,8 @@ Examples:
     parser.add_argument(
         "--db-url",
         type=str,
-        default="postgresql://anatoli@localhost:5432/bacpipes",
-        help="Database URL (default: postgresql://anatoli@localhost:5432/bacpipes)",
+        default="postgresql://bacpipes@localhost:5432/bacpipes",
+        help="Database URL (default: postgresql://bacpipes@localhost:5432/bacpipes)",
     )
 
     args = parser.parse_args()

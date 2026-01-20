@@ -12,7 +12,7 @@ services:
     image: postgres:15-alpine
     container_name: bacpipes-postgres
     environment:
-      POSTGRES_USER: anatoli
+      POSTGRES_USER: bacpipes
       POSTGRES_DB: bacpipes
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
@@ -20,7 +20,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U anatoli -d bacpipes"]
+      test: ["CMD-SHELL", "pg_isready -U bacpipes -d bacpipes"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -38,13 +38,13 @@ services:
     network_mode: host
     environment:
       # Database - localhost since host networking
-      DATABASE_URL: postgresql://anatoli@localhost:5432/bacpipes
+      DATABASE_URL: postgresql://bacpipes@localhost:5432/bacpipes
       DB_HOST: localhost
       DB_PORT: 5432
-      DB_USER: anatoli
+      DB_USER: bacpipes
       DB_NAME: bacpipes
       # Timezone
-      TZ: Asia/Kuala_Lumpur
+      TZ: UTC
     volumes:
       # Persist Reflex build cache
       - reflex_web:/app/.web

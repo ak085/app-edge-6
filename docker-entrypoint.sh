@@ -6,7 +6,7 @@ echo "Database: $DATABASE_URL"
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for PostgreSQL..."
-until pg_isready -h ${DB_HOST:-localhost} -p ${DB_PORT:-5432} -U ${DB_USER:-anatoli} -q 2>/dev/null; do
+until pg_isready -h ${DB_HOST:-localhost} -p ${DB_PORT:-5432} -U ${DB_USER:-bacpipes} -q 2>/dev/null; do
     echo "  PostgreSQL not ready, waiting..."
     sleep 2
 done
@@ -38,7 +38,7 @@ sys.path.insert(0, '/app')
 
 from sqlmodel import Session, create_engine, select, text
 
-db_url = os.environ.get("DATABASE_URL", "postgresql://anatoli@localhost:5432/bacpipes")
+db_url = os.environ.get("DATABASE_URL", "postgresql://bacpipes@localhost:5432/bacpipes")
 engine = create_engine(db_url)
 
 try:
@@ -65,7 +65,7 @@ try:
                 settings = SystemSettings(
                     adminUsername="admin",
                     adminPasswordHash="",
-                    timezone="Asia/Kuala_Lumpur",
+                    timezone="UTC",
                 )
                 session.add(settings)
                 session.commit()

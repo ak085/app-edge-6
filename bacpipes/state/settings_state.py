@@ -38,7 +38,7 @@ class SettingsState(rx.State):
     ca_cert_upload_message: str = ""
 
     # System settings
-    timezone: str = "Asia/Kuala_Lumpur"
+    timezone: str = "UTC"
     default_poll_interval: int = 60
 
     # Poll interval apply message
@@ -211,7 +211,7 @@ class SettingsState(rx.State):
 
     async def save_system_config(self, form_data: dict):
         """Save system configuration (timezone, poll interval)."""
-        timezone = form_data.get("timezone", "Asia/Kuala_Lumpur").strip()
+        timezone = form_data.get("timezone", "UTC").strip()
         poll_interval = int(form_data.get("default_poll_interval", 60))
 
         with rx.session() as session:

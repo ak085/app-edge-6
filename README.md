@@ -13,7 +13,7 @@
 
 ```bash
 # Clone and deploy
-git clone http://10.0.10.2:30008/ak101/app-edge-6.git bacpipes
+git clone <repository-url> bacpipes
 cd bacpipes
 docker compose up -d
 
@@ -254,12 +254,6 @@ bacpipes/
     ├── worker/                 # BACnet/MQTT worker
     └── utils/                  # Utilities
 ```
-
----
-
-## Repository
-
-- **Gitea**: http://10.0.10.2:30008/ak101/app-edge-6.git
 
 ---
 

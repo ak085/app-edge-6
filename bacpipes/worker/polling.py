@@ -56,7 +56,7 @@ class PollingWorker:
         self.bacnet_ip: Optional[str] = None
         self.bacnet_port: int = 47808
         self.bacnet_device_id: int = 3001234
-        self.timezone = pytz.timezone("Asia/Kuala_Lumpur")
+        self.timezone = pytz.timezone("UTC")
         self.poll_interval: int = 60
 
         # State
@@ -550,7 +550,7 @@ async def start_worker():
     # Get database URL from rxconfig
     db_url = os.getenv(
         "DATABASE_URL",
-        "postgresql://anatoli@localhost:5432/bacpipes"
+        "postgresql://bacpipes@localhost:5432/bacpipes"
     )
 
     worker = PollingWorker(db_url)
