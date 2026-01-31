@@ -4,7 +4,6 @@ import reflex as rx
 
 from ..state.auth_state import AuthState
 from ..state.dashboard_state import DashboardState
-from ..state.settings_state import SettingsState
 from ..state.worker_state import WorkerState
 
 
@@ -26,12 +25,14 @@ def header_bar() -> rx.Component:
         ),
         rx.spacer(),
         rx.hstack(
+            rx.color_mode.button(size="2", variant="outline"),
             rx.button(
                 rx.icon("refresh-cw", size=16),
                 "Refresh",
                 variant="outline",
                 size="2",
                 on_click=DashboardState.load_dashboard,
+                loading=DashboardState.is_loading,
             ),
             rx.button(
                 rx.icon("rotate-cw", size=16),
@@ -41,14 +42,6 @@ def header_bar() -> rx.Component:
                 size="2",
                 on_click=WorkerState.restart_worker,
                 loading=WorkerState.is_restarting,
-            ),
-            rx.button(
-                rx.icon("power", size=16),
-                "Shutdown",
-                variant="outline",
-                color_scheme="red",
-                size="2",
-                on_click=SettingsState.shutdown_gui,
             ),
             rx.button(
                 rx.icon("log-out", size=16),
@@ -61,8 +54,8 @@ def header_bar() -> rx.Component:
         ),
         width="100%",
         padding="4",
-        background="white",
-        border_bottom="1px solid #E5E7EB",
+        background=rx.color("gray", 1),
+        border_bottom="1px solid var(--gray-5)",
         position="sticky",
         top="0",
         z_index="100",
@@ -85,14 +78,14 @@ def page_layout(content: rx.Component) -> rx.Component:
                 ),
                 width="100%",
                 min_height="100vh",
-                background="#F9FAFB",
+                background=rx.color("gray", 2),
                 spacing="0",
             ),
             # Show loading while checking auth - redirect handled by check_session
             rx.center(
                 rx.spinner(size="3"),
                 min_height="100vh",
-                background="#F9FAFB",
+                background=rx.color("gray", 2),
             ),
         ),
         on_mount=[

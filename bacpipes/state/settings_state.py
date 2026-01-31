@@ -509,13 +509,3 @@ class SettingsState(rx.State):
                 settings.updatedAt = datetime.now()
                 session.add(settings)
                 session.commit()
-
-    def shutdown_gui(self):
-        """Shutdown the entire application (GUI + Worker).
-
-        Note: The worker runs as a lifespan task in the same process as the GUI,
-        so SIGTERM kills both. Restart with: docker compose up -d
-        """
-        import os
-        import signal
-        os.kill(os.getpid(), signal.SIGTERM)

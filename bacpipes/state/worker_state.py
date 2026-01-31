@@ -1,7 +1,6 @@
 """Worker state for BacPipes."""
 
 import os
-import signal
 from datetime import datetime
 from typing import Optional
 import reflex as rx
@@ -83,14 +82,14 @@ class WorkerState(rx.State):
                 f.write(str(datetime.now().timestamp()))
 
             self.restart_message = "Worker restart requested. Changes will take effect within 10 seconds."
+            yield rx.toast.success("Worker restart requested")
 
         except Exception as e:
             self.restart_message = f"Failed to restart worker: {str(e)}"
+            yield rx.toast.error(f"Failed: {str(e)}")
 
         finally:
             self.is_restarting = False
-
-        yield
 
         # Reload status after a short delay
         import asyncio

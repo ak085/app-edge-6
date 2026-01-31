@@ -81,6 +81,7 @@ Perfect for integrating building automation systems with IoT platforms, time-ser
 |---------|-------------|
 | **Web Authentication** | Login required, 3-hour session timeout |
 | **Master PIN** | Protects password changes (admin-only control) |
+| **Dark Mode** | Toggle between light and dark themes |
 | **BACnet Discovery** | Auto-scan network for devices and points |
 | **Haystack Tagging** | 8-field semantic naming for ML/analytics |
 | **MQTT Publishing** | Real-time data streaming to any broker |

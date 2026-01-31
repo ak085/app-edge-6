@@ -88,7 +88,7 @@ def setup_wizard_page() -> rx.Component:
                         spacing="3",
                         width="100%",
                         padding="4",
-                        background="#F9FAFB",
+                        background=rx.color("gray", 2),
                         border_radius="8px",
                     ),
                     # Step 2: MQTT Configuration
@@ -175,7 +175,7 @@ def setup_wizard_page() -> rx.Component:
                         spacing="3",
                         width="100%",
                         padding="4",
-                        background="#F9FAFB",
+                        background=rx.color("gray", 2),
                         border_radius="8px",
                     ),
                     # Continue button
@@ -206,6 +206,6 @@ def setup_wizard_page() -> rx.Component:
             spacing="4",
         ),
         min_height="100vh",
-        background="#F9FAFB",
+        background=rx.color("gray", 2),
         on_mount=SettingsState.load_settings,
     )

@@ -8,7 +8,6 @@ import math
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from pathlib import Path
 
 import pytz
 from sqlmodel import Session, select, create_engine
@@ -27,9 +26,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
-
-# Shutdown flag
-shutdown_requested = False
 
 # Discovery coordination lock file
 DISCOVERY_LOCK_FILE = "/tmp/bacnet_discovery_active"
@@ -419,24 +415,16 @@ class PollingWorker:
 
     async def run(self):
         """Main worker loop."""
-        global shutdown_requested
-
         logger.info("=== BacPipes Worker Starting ===")
 
         # Wait for configuration
-        while not self.load_system_settings() and not shutdown_requested:
+        while not self.load_system_settings():
             logger.info("Waiting for BACnet configuration...")
             await asyncio.sleep(10)
 
-        if shutdown_requested:
-            return
-
-        while not self.load_mqtt_config() and not shutdown_requested:
+        while not self.load_mqtt_config():
             logger.info("Waiting for MQTT configuration...")
             await asyncio.sleep(10)
-
-        if shutdown_requested:
-            return
 
         # Initialize BACnet
         self.bacnet_client = BACnetClient(
@@ -470,7 +458,7 @@ class PollingWorker:
         logger.info("=== Worker Started ===")
 
         # Main loop
-        while not shutdown_requested:
+        while True:
             try:
                 # Check for discovery lock
                 if os.path.exists(DISCOVERY_LOCK_FILE):
@@ -478,17 +466,16 @@ class PollingWorker:
                     self.bacnet_client.close()
                     self.bacnet_client = None
 
-                    while os.path.exists(DISCOVERY_LOCK_FILE) and not shutdown_requested:
+                    while os.path.exists(DISCOVERY_LOCK_FILE):
                         await asyncio.sleep(1)
 
-                    if not shutdown_requested:
-                        logger.info("Discovery complete - restarting BACnet")
-                        self.bacnet_client = BACnetClient(
-                            local_ip=self.bacnet_ip,
-                            port=self.bacnet_port,
-                            device_id=self.bacnet_device_id,
-                        )
-                        self.bacnet_client.initialize()
+                    logger.info("Discovery complete - restarting BACnet")
+                    self.bacnet_client = BACnetClient(
+                        local_ip=self.bacnet_ip,
+                        port=self.bacnet_port,
+                        device_id=self.bacnet_device_id,
+                    )
+                    self.bacnet_client.initialize()
                     continue
 
                 # Check for restart flag

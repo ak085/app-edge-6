@@ -126,6 +126,7 @@ class DashboardState(rx.State):
 
         self.last_refresh = datetime.now().strftime("%H:%M:%S")
         self.is_loading = False
+        yield rx.toast.success("Dashboard refreshed")
 
     def toggle_auto_refresh(self, enabled: bool):
         """Toggle auto-refresh setting."""

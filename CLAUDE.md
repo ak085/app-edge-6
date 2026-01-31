@@ -9,6 +9,7 @@
 **Core Features**:
 - Web UI authentication with session management
 - Master PIN protection for password changes
+- Dark mode toggle (Reflex standard color mode)
 - BACnet device/point discovery via web UI
 - Haystack tagging (8-field semantic naming)
 - MQTT publishing to external broker
@@ -79,8 +80,7 @@ bacpipes/
 │   │   ├── mqtt_config.py
 │   │   ├── system_settings.py
 │   │   ├── discovery_job.py
-│   │   ├── write_history.py
-│   │   └── error_log.py
+│   │   └── write_history.py
 │   │
 │   ├── state/                    # Reflex State classes
 │   │   ├─ auth_state.py

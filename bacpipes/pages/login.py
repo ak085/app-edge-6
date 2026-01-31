@@ -78,5 +78,5 @@ def login_page() -> rx.Component:
             spacing="4",
         ),
         min_height="100vh",
-        background="#F9FAFB",
+        background=rx.color("gray", 2),
     )

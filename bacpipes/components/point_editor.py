@@ -273,7 +273,7 @@ def bulk_config_display() -> rx.Component:
         spacing="2",
         width="100%",
         padding="3",
-        background="#F9FAFB",
+        background=rx.color("gray", 2),
         border_radius="8px",
     )
 
