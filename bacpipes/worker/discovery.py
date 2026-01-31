@@ -95,8 +95,9 @@ class DiscoveryApp(NormalApplication):
 
             # Read properties for each object
             for obj_id in object_list:
-                if str(obj_id[0]) == "device":
-                    continue  # Skip device object
+                obj_type = str(obj_id[0])
+                if obj_type in ("device", "network-port"):
+                    continue  # Skip device and network-port objects
 
                 await self.read_object_properties(device_address, device_id, device_name, obj_id)
 

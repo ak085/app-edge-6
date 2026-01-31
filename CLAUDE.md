@@ -105,8 +105,7 @@ bacpipes/
 │   │   ├── bacnet_client.py
 │   │   ├── mqtt_client.py
 │   │   ├── discovery.py
-│   │   ├── polling.py
-│   │   └── write_handler.py
+│   │   └── polling.py
 │   │
 │   └── utils/
 │       ├── auth.py
@@ -236,4 +235,4 @@ docker exec -it bacpipes-postgres psql -U bacpipes -d bacpipes
 | WriteHistory | WriteHistory | Write audit log |
 ---
 
-**Last Updated**: 2026-01-20
+**Last Updated**: 2026-01-31
