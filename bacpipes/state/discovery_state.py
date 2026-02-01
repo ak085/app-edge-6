@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import reflex as rx
-from sqlmodel import select
+from sqlmodel import select, func
 
 from ..models.device import Device
 from ..models.point import Point
@@ -32,34 +32,54 @@ class DiscoveryState(rx.State):
     scan_ip: str = ""
     scan_timeout: int = 15
 
-    async def load_discovery_data(self):
-        """Load discovery data from database."""
+    # Loading state
+    is_loading: bool = False
+
+    def _load_discovery_data_sync(self) -> Dict[str, Any]:
+        """Synchronous database operations run in thread pool."""
+        result = {
+            "scan_ip": "",
+            "discovered_devices": [],
+            "recent_jobs": [],
+        }
+
         with rx.session() as session:
             # Get system settings for default IP
             settings = session.exec(select(SystemSettings)).first()
             if settings and settings.bacnetIp:
-                self.scan_ip = settings.bacnetIp
+                result["scan_ip"] = settings.bacnetIp
 
-            # Get discovered devices
-            devices = session.exec(
-                select(Device).order_by(Device.deviceName)
-            ).all()
+            # Get devices with point counts using JOIN and GROUP BY (eliminates N+1)
+            device_query = (
+                select(
+                    Device.id,
+                    Device.deviceId,
+                    Device.deviceName,
+                    Device.ipAddress,
+                    Device.vendorName,
+                    Device.enabled,
+                    Device.lastSeenAt,
+                    func.count(Point.id).label("point_count")
+                )
+                .outerjoin(Point, Device.id == Point.deviceId)
+                .group_by(Device.id)
+                .order_by(Device.deviceName)
+            )
+            devices_result = session.exec(device_query).all()
 
-            self.discovered_devices = []
-            for device in devices:
-                point_count = session.exec(
-                    select(Point).where(Point.deviceId == device.id)
-                ).all()
-                self.discovered_devices.append({
-                    "id": device.id,
-                    "deviceId": device.deviceId,
-                    "deviceName": device.deviceName,
-                    "ipAddress": device.ipAddress,
-                    "vendorName": device.vendorName,
-                    "enabled": device.enabled,
-                    "pointCount": len(point_count),
-                    "lastSeenAt": device.lastSeenAt.isoformat() if device.lastSeenAt else None,
-                })
+            result["discovered_devices"] = [
+                {
+                    "id": row[0],
+                    "deviceId": row[1],
+                    "deviceName": row[2],
+                    "ipAddress": row[3],
+                    "vendorName": row[4],
+                    "enabled": row[5],
+                    "lastSeenAt": row[6].isoformat() if row[6] else None,
+                    "pointCount": row[7],
+                }
+                for row in devices_result
+            ]
 
             # Get recent jobs
             jobs = session.exec(
@@ -68,9 +88,8 @@ class DiscoveryState(rx.State):
                 .limit(5)
             ).all()
 
-            self.recent_jobs = []
-            for job in jobs:
-                self.recent_jobs.append({
+            result["recent_jobs"] = [
+                {
                     "id": job.id,
                     "status": job.status,
                     "ipAddress": job.ipAddress,
@@ -79,7 +98,27 @@ class DiscoveryState(rx.State):
                     "startedAt": job.startedAt.isoformat() if job.startedAt else None,
                     "completedAt": job.completedAt.isoformat() if job.completedAt else None,
                     "errorMessage": job.errorMessage,
-                })
+                }
+                for job in jobs
+            ]
+
+        return result
+
+    @rx.event(background=True)
+    async def load_discovery_data(self):
+        """Load discovery data from database (non-blocking)."""
+        async with self:
+            self.is_loading = True
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_discovery_data_sync)
+
+        async with self:
+            if result["scan_ip"] and not self.scan_ip:
+                self.scan_ip = result["scan_ip"]
+            self.discovered_devices = result["discovered_devices"]
+            self.recent_jobs = result["recent_jobs"]
+            self.is_loading = False
 
     async def start_discovery(self, form_data: dict):
         """Start a BACnet discovery scan."""
@@ -134,7 +173,11 @@ class DiscoveryState(rx.State):
             self.scan_progress = "Discovery complete! Reloading data..."
             yield
 
-            await self.load_discovery_data()
+            # Use background reload
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self._load_discovery_data_sync)
+            self.discovered_devices = result["discovered_devices"]
+            self.recent_jobs = result["recent_jobs"]
 
             # Get job result
             with rx.session() as session:
@@ -183,19 +226,26 @@ class DiscoveryState(rx.State):
         self.current_job_id = None
         self.scan_progress = "Discovery cancelled"
 
-    async def toggle_device_enabled(self, device_id: str, enabled: bool):
-        """Toggle device enabled status.
-
-        When using handler(bound_arg) pattern in Reflex with rx.foreach,
-        the bound argument comes FIRST, then the event value.
-        """
-        dev_id = int(device_id) if device_id else 0
+    def _toggle_device_sync(self, device_id: int, enabled: bool):
+        """Synchronous toggle device operation."""
         with rx.session() as session:
-            device = session.get(Device, dev_id)
+            device = session.get(Device, device_id)
             if device:
                 device.enabled = enabled
                 device.lastSeenAt = datetime.now()
                 session.add(device)
                 session.commit()
 
-        await self.load_discovery_data()
+    @rx.event(background=True)
+    async def toggle_device_enabled(self, device_id: str, enabled: bool):
+        """Toggle device enabled status (non-blocking)."""
+        dev_id = int(device_id) if device_id else 0
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._toggle_device_sync, dev_id, enabled)
+
+        # Reload data
+        result = await loop.run_in_executor(None, self._load_discovery_data_sync)
+
+        async with self:
+            self.discovered_devices = result["discovered_devices"]

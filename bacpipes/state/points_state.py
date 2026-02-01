@@ -1,9 +1,10 @@
 """Points state for BacPipes."""
 
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import reflex as rx
-from sqlmodel import select
+from sqlmodel import select, func
 
 from ..models.device import Device
 from ..models.point import Point
@@ -98,6 +99,10 @@ class PointsState(rx.State):
     # Points list
     points: List[Dict[str, Any]] = []
     total_count: int = 0
+
+    # Pagination
+    page: int = 0
+    page_size: int = 100
 
     # Filters
     filter_device_id: Optional[int] = None
@@ -232,6 +237,32 @@ class PointsState(rx.State):
         """Check if MQTT only filter is active."""
         return self.filter_mqtt_status == "MQTT Enabled"
 
+    @rx.var
+    def total_pages(self) -> int:
+        """Calculate total pages."""
+        if self.total_count == 0:
+            return 1
+        return (self.total_count + self.page_size - 1) // self.page_size
+
+    @rx.var
+    def has_next_page(self) -> bool:
+        """Check if there is a next page."""
+        return (self.page + 1) < self.total_pages
+
+    @rx.var
+    def has_prev_page(self) -> bool:
+        """Check if there is a previous page."""
+        return self.page > 0
+
+    @rx.var
+    def page_display(self) -> str:
+        """Display current page info."""
+        if self.total_count == 0:
+            return "No points"
+        start = self.page * self.page_size + 1
+        end = min((self.page + 1) * self.page_size, self.total_count)
+        return f"{start}-{end} of {self.total_count}"
+
     # Setters for dropdown display values
     def set_point_function_from_display(self, display: str):
         """Set point function from display value."""
@@ -303,22 +334,26 @@ class PointsState(rx.State):
     def set_bulk_site_id(self, value: str):
         self.bulk_site_id = value
 
-    async def load_points(self):
-        """Load points from database with filters."""
-        self.is_loading = True
-        yield
+    def _load_points_sync(self) -> Dict[str, Any]:
+        """Synchronous database operations run in thread pool."""
+        result = {
+            "points": [],
+            "total_count": 0,
+            "device_options": ["All Devices"],
+            "object_type_options": ["All Types"],
+            "bulk_devices": [],
+        }
 
         with rx.session() as session:
-            # Build query
-            query = select(Point)
+            # Build base query with JOIN to get device info (eliminates N+1)
+            query = (
+                select(Point, Device)
+                .join(Device, Point.deviceId == Device.id)
+            )
 
             # Apply filters
             if self.filter_device_name != "All Devices":
-                device = session.exec(
-                    select(Device).where(Device.deviceName == self.filter_device_name)
-                ).first()
-                if device:
-                    query = query.where(Point.deviceId == device.id)
+                query = query.where(Device.deviceName == self.filter_device_name)
 
             if self.filter_object_type != "All Types":
                 query = query.where(Point.objectType == self.filter_object_type)
@@ -336,17 +371,23 @@ class PointsState(rx.State):
                     (Point.dis.ilike(search))
                 )
 
+            # Get total count for pagination
+            count_query = select(func.count()).select_from(
+                query.order_by(None).subquery()
+            )
+            result["total_count"] = session.exec(count_query).one()
+
+            # Apply ordering and pagination
             query = query.order_by(Point.pointName)
+            query = query.offset(self.page * self.page_size).limit(self.page_size)
 
             results = session.exec(query).all()
 
-            # Build points list
-            self.points = []
-            for point in results:
-                device = session.get(Device, point.deviceId)
-                self.points.append({
+            # Build points list (device info already joined)
+            for point, device in results:
+                result["points"].append({
                     "id": point.id,
-                    "bacnetName": point.bacnetName or point.pointName,  # Fallback for existing points
+                    "bacnetName": point.bacnetName or point.pointName,
                     "pointName": point.pointName,
                     "objectType": point.objectType,
                     "objectInstance": point.objectInstance,
@@ -361,8 +402,8 @@ class PointsState(rx.State):
                     "lastValue": point.lastValue or "",
                     "lastPollTime": point.lastPollTime.isoformat() if point.lastPollTime else None,
                     "deviceId": point.deviceId,
-                    "deviceName": device.deviceName if device else "Unknown",
-                    "deviceBacnetId": device.deviceId if device else 0,
+                    "deviceName": device.deviceName,
+                    "deviceBacnetId": device.deviceId,
                     "siteId": point.siteId or "",
                     "equipmentType": point.equipmentType or "",
                     "equipmentId": point.equipmentId or "",
@@ -376,64 +417,139 @@ class PointsState(rx.State):
                     "maxPresValue": str(point.maxPresValue) if point.maxPresValue is not None else "",
                 })
 
-            self.total_count = len(self.points)
-
             # Load filter options
             all_devices = session.exec(select(Device).order_by(Device.deviceName)).all()
-            self.device_options = ["All Devices"] + [d.deviceName for d in all_devices]
+            result["device_options"] = ["All Devices"] + [d.deviceName for d in all_devices]
 
             all_types = session.exec(select(Point.objectType).distinct()).all()
-            self.object_type_options = ["All Types"] + sorted([t for t in all_types if t])
+            result["object_type_options"] = ["All Types"] + sorted([t for t in all_types if t])
 
-            # Load bulk device info
-            self.bulk_devices = []
+            # Load bulk device info with point counts using aggregate query
+            device_counts = session.exec(
+                select(Device.id, func.count(Point.id).label("point_count"))
+                .outerjoin(Point, Device.id == Point.deviceId)
+                .group_by(Device.id)
+            ).all()
+            count_map = {row[0]: row[1] for row in device_counts}
+
             for device in all_devices:
-                point_count = len([p for p in results if p.deviceId == device.id])
-                self.bulk_devices.append({
+                result["bulk_devices"].append({
                     "id": device.id,
                     "deviceId": device.deviceId,
                     "deviceName": device.deviceName,
                     "ipAddress": device.ipAddress,
-                    "pointCount": point_count,
+                    "pointCount": count_map.get(device.id, 0),
                     "equipmentType": "",
                     "equipmentId": "",
                 })
 
-        self.is_loading = False
+        return result
+
+    @rx.event(background=True)
+    async def load_points(self):
+        """Load points from database with filters (non-blocking)."""
+        async with self:
+            self.is_loading = True
+
+        # Run blocking DB operations in thread pool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_points_sync)
+
+        async with self:
+            self.points = result["points"]
+            self.total_count = result["total_count"]
+            self.device_options = result["device_options"]
+            self.object_type_options = result["object_type_options"]
+            self.bulk_devices = result["bulk_devices"]
+            self.is_loading = False
+
+    # Pagination methods
+    @rx.event(background=True)
+    async def next_page(self):
+        """Go to next page."""
+        async with self:
+            if (self.page + 1) * self.page_size < self.total_count:
+                self.page += 1
+
+        # Reload points with new page
+        await self._reload_points()
+
+    @rx.event(background=True)
+    async def prev_page(self):
+        """Go to previous page."""
+        async with self:
+            if self.page > 0:
+                self.page -= 1
+
+        # Reload points with new page
+        await self._reload_points()
+
+    @rx.event(background=True)
+    async def first_page(self):
+        """Go to first page."""
+        async with self:
+            self.page = 0
+
+        await self._reload_points()
+
+    async def _reload_points(self):
+        """Helper to reload points after page/filter change."""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_points_sync)
+
+        async with self:
+            self.points = result["points"]
+            self.total_count = result["total_count"]
+            self.is_loading = False
 
     # Filter setters - auto-apply filters
+    @rx.event(background=True)
     async def set_filter_device(self, device_name: str):
         """Set device filter and reload points."""
-        self.filter_device_name = device_name
-        async for _ in self.load_points():
-            pass
+        async with self:
+            self.filter_device_name = device_name
+            self.page = 0  # Reset to first page on filter change
 
+        await self._reload_points()
+
+    @rx.event(background=True)
     async def set_filter_object_type(self, object_type: str):
         """Set object type filter and reload points."""
-        self.filter_object_type = object_type
-        async for _ in self.load_points():
-            pass
+        async with self:
+            self.filter_object_type = object_type
+            self.page = 0
 
+        await self._reload_points()
+
+    @rx.event(background=True)
     async def set_filter_mqtt_status(self, status: str):
         """Set MQTT status filter and reload points."""
-        self.filter_mqtt_status = status
-        async for _ in self.load_points():
-            pass
+        async with self:
+            self.filter_mqtt_status = status
+            self.page = 0
 
+        await self._reload_points()
+
+    @rx.event(background=True)
     async def set_search_query(self, query: str):
         """Set search query and reload points."""
-        self.search_query = query
-        async for _ in self.load_points():
-            pass
+        async with self:
+            self.search_query = query
+            self.page = 0
 
+        await self._reload_points()
+
+    @rx.event(background=True)
     async def clear_filters(self):
         """Clear all filters and reload points."""
-        self.filter_device_name = "All Devices"
-        self.filter_object_type = "All Types"
-        self.filter_mqtt_status = "All"
-        self.search_query = ""
-        async for _ in self.load_points():
-            pass
+        async with self:
+            self.filter_device_name = "All Devices"
+            self.filter_object_type = "All Types"
+            self.filter_mqtt_status = "All"
+            self.search_query = ""
+            self.page = 0
+
+        await self._reload_points()
 
     # Selection methods
     def toggle_point_selection(self, point_id: str, checked: bool):
@@ -497,21 +613,16 @@ class PointsState(rx.State):
         self.selected_point = {}
         self.save_message = ""
 
-    async def save_point(self):
-        """Save point configuration."""
+    def _save_point_sync(self) -> str:
+        """Synchronous save point operation."""
         if not self.selected_point_id:
-            return
-
-        self.save_message = ""
-        yield
+            return "No point selected"
 
         with rx.session() as session:
             pid = int(self.selected_point_id) if self.selected_point_id else 0
             point = session.get(Point, pid)
             if not point:
-                self.save_message = "Point not found"
-                yield
-                return
+                return "Point not found"
 
             # Update Haystack fields
             point.siteId = self.edit_site_id or None
@@ -542,36 +653,54 @@ class PointsState(rx.State):
             session.add(point)
             session.commit()
 
-        self.save_message = "Saved successfully"
-        yield
+        return "Saved successfully"
+
+    @rx.event(background=True)
+    async def save_point(self):
+        """Save point configuration."""
+        if not self.selected_point_id:
+            return
+
+        async with self:
+            self.save_message = ""
+
+        loop = asyncio.get_event_loop()
+        message = await loop.run_in_executor(None, self._save_point_sync)
+
+        async with self:
+            self.save_message = message
 
         # Reload points
-        async for _ in self.load_points():
-            pass
-        self.close_editor()
+        await self._reload_points()
+
+        async with self:
+            self.close_editor()
 
     # Bulk operations
-    async def toggle_mqtt_publish(self, point_id: str, enabled: bool):
-        """Toggle MQTT publish for a single point."""
-        pid = int(point_id) if point_id else 0
+    def _toggle_mqtt_sync(self, point_id: int, enabled: bool):
+        """Synchronous toggle MQTT operation."""
         with rx.session() as session:
-            point = session.get(Point, pid)
+            point = session.get(Point, point_id)
             if point:
                 point.mqttPublish = enabled
                 point.updatedAt = datetime.now()
                 session.add(point)
                 session.commit()
 
-        async for _ in self.load_points():
-            pass
+    @rx.event(background=True)
+    async def toggle_mqtt_publish(self, point_id: str, enabled: bool):
+        """Toggle MQTT publish for a single point."""
+        pid = int(point_id) if point_id else 0
 
-    async def bulk_enable_mqtt(self):
-        """Enable MQTT publish for selected points."""
-        if not self.selected_point_ids:
-            return
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._toggle_mqtt_sync, pid, enabled)
 
+        await self._reload_points()
+
+    def _bulk_enable_mqtt_sync(self, point_ids: List[int]):
+        """Synchronous bulk enable MQTT operation."""
         with rx.session() as session:
-            for point_id in self.selected_point_ids:
+            for point_id in point_ids:
                 point = session.get(Point, point_id)
                 if point:
                     point.mqttPublish = True
@@ -579,17 +708,26 @@ class PointsState(rx.State):
                     session.add(point)
             session.commit()
 
-        self.clear_selection()
-        async for _ in self.load_points():
-            pass
+    @rx.event(background=True)
+    async def bulk_enable_mqtt(self):
+        """Enable MQTT publish for selected points."""
+        async with self:
+            if not self.selected_point_ids:
+                return
+            point_ids = list(self.selected_point_ids)
 
-    async def bulk_disable_mqtt(self):
-        """Disable MQTT publish for selected points."""
-        if not self.selected_point_ids:
-            return
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._bulk_enable_mqtt_sync, point_ids)
 
+        async with self:
+            self.selected_point_ids = []
+
+        await self._reload_points()
+
+    def _bulk_disable_mqtt_sync(self, point_ids: List[int]):
+        """Synchronous bulk disable MQTT operation."""
         with rx.session() as session:
-            for point_id in self.selected_point_ids:
+            for point_id in point_ids:
                 point = session.get(Point, point_id)
                 if point:
                     point.mqttPublish = False
@@ -597,33 +735,44 @@ class PointsState(rx.State):
                     session.add(point)
             session.commit()
 
-        self.clear_selection()
-        async for _ in self.load_points():
-            pass
+    @rx.event(background=True)
+    async def bulk_disable_mqtt(self):
+        """Disable MQTT publish for selected points."""
+        async with self:
+            if not self.selected_point_ids:
+                return
+            point_ids = list(self.selected_point_ids)
 
-    async def apply_bulk_config(self):
-        """Apply bulk configuration to all points."""
-        if not self.bulk_site_id:
-            self.bulk_save_message = "Site ID is required"
-            return
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._bulk_disable_mqtt_sync, point_ids)
 
-        self.bulk_save_message = ""
-        yield
+        async with self:
+            self.selected_point_ids = []
+
+        await self._reload_points()
+
+    def _apply_bulk_config_sync(self, bulk_site_id: str, bulk_devices: List[Dict]) -> str:
+        """Synchronous bulk config operation - optimized with batch update."""
+        if not bulk_site_id:
+            return "Site ID is required"
+
+        # Build device config lookup
+        device_config = {dev["id"]: dev for dev in bulk_devices}
 
         with rx.session() as session:
-            # Update all points with site ID
+            # Get all points in a single query
             points = session.exec(select(Point)).all()
-            for point in points:
-                point.siteId = self.bulk_site_id
 
-                # Find device equipment mapping
-                for dev_config in self.bulk_devices:
-                    if dev_config["id"] == point.deviceId:
-                        if dev_config.get("equipmentType"):
-                            point.equipmentType = dev_config["equipmentType"]
-                        if dev_config.get("equipmentId"):
-                            point.equipmentId = dev_config["equipmentId"]
-                        break
+            for point in points:
+                point.siteId = bulk_site_id
+
+                # Apply device-specific equipment mapping
+                dev_conf = device_config.get(point.deviceId)
+                if dev_conf:
+                    if dev_conf.get("equipmentType"):
+                        point.equipmentType = dev_conf["equipmentType"]
+                    if dev_conf.get("equipmentId"):
+                        point.equipmentId = dev_conf["equipmentId"]
 
                 # Regenerate Haystack name and topic
                 point.haystackPointName = point.generate_haystack_name()
@@ -633,10 +782,28 @@ class PointsState(rx.State):
 
             session.commit()
 
-        self.bulk_save_message = "Configuration applied to all points"
-        yield
-        async for _ in self.load_points():
-            pass
+        return f"Configuration applied to {len(points)} points"
+
+    @rx.event(background=True)
+    async def apply_bulk_config(self):
+        """Apply bulk configuration to all points."""
+        async with self:
+            if not self.bulk_site_id:
+                self.bulk_save_message = "Site ID is required"
+                return
+            bulk_site_id = self.bulk_site_id
+            bulk_devices = list(self.bulk_devices)
+            self.bulk_save_message = ""
+
+        loop = asyncio.get_event_loop()
+        message = await loop.run_in_executor(
+            None, self._apply_bulk_config_sync, bulk_site_id, bulk_devices
+        )
+
+        async with self:
+            self.bulk_save_message = message
+
+        await self._reload_points()
 
     def set_device_equipment_type(self, device_id: str, equipment_type: str):
         """Set equipment type for a device in bulk config."""

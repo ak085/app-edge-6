@@ -233,6 +233,62 @@ docker exec -it bacpipes-postgres psql -U bacpipes -d bacpipes
 | SystemSettings | SystemSettings | Auth + BACnet config |
 | DiscoveryJob | DiscoveryJob | Scan tracking |
 | WriteHistory | WriteHistory | Write audit log |
+
 ---
 
-**Last Updated**: 2026-01-31
+## Performance Patterns (IMPORTANT)
+
+All state classes use **background tasks** for database operations to support multiple concurrent users. See `REFLEX_PERFORMANCE.md` for detailed documentation.
+
+### Required Patterns for State Methods
+
+**Database loading methods must use:**
+```python
+@rx.event(background=True)
+async def load_data(self):
+    async with self:
+        self.is_loading = True
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, self._load_data_sync)
+
+    async with self:
+        self.data = result
+        self.is_loading = False
+
+def _load_data_sync(self) -> dict:
+    """Synchronous DB operations in thread pool."""
+    with rx.session() as session:
+        # queries here
+    return data
+```
+
+**Avoid N+1 queries - use JOINs:**
+```python
+# BAD: N+1
+for device in devices:
+    count = session.exec(select(func.count(Point.id)).where(...)).one()
+
+# GOOD: Single query
+select(Device, func.count(Point.id)).outerjoin(Point).group_by(Device.id)
+```
+
+**Use pagination for large tables:**
+- Points tab uses 100 items per page
+- Add `page`, `page_size`, `total_count` state variables
+- Use `.offset()` and `.limit()` in queries
+
+---
+
+## Related Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `README.md` | User-facing documentation |
+| `CLAUDE.md` | AI development context (this file) |
+| `REFLEX_PERFORMANCE.md` | Performance optimization guide for Reflex apps |
+| `CENTRAL_CONFIG_PLAN.md` | Architecture plan for central config app + edge device split |
+
+---
+
+**Last Updated**: 2026-02-01

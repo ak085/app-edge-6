@@ -5,6 +5,49 @@ import reflex as rx
 from ..state.points_state import PointsState
 
 
+def pagination_controls() -> rx.Component:
+    """Pagination controls for the points table."""
+    return rx.hstack(
+        rx.hstack(
+            rx.button(
+                rx.icon("chevrons-left", size=14),
+                variant="outline",
+                size="1",
+                on_click=PointsState.first_page,
+                disabled=~PointsState.has_prev_page,
+            ),
+            rx.button(
+                rx.icon("chevron-left", size=14),
+                variant="outline",
+                size="1",
+                on_click=PointsState.prev_page,
+                disabled=~PointsState.has_prev_page,
+            ),
+            spacing="1",
+        ),
+        rx.text(
+            PointsState.page_display,
+            size="2",
+            color="gray",
+        ),
+        rx.hstack(
+            rx.button(
+                rx.icon("chevron-right", size=14),
+                variant="outline",
+                size="1",
+                on_click=PointsState.next_page,
+                disabled=~PointsState.has_next_page,
+            ),
+            spacing="1",
+        ),
+        spacing="3",
+        align="center",
+        justify="center",
+        width="100%",
+        padding_top="3",
+    )
+
+
 def point_table() -> rx.Component:
     """Table displaying BACnet points with Haystack tags."""
     return rx.card(
@@ -23,7 +66,7 @@ def point_table() -> rx.Component:
                                 rx.table.row(
                                     rx.table.column_header_cell(
                                         rx.checkbox(
-                                            checked=PointsState.selected_count == PointsState.total_count,
+                                            checked=PointsState.selected_count == PointsState.points.length(),
                                             on_change=PointsState.toggle_select_all,
                                         ),
                                         width="40px",
@@ -44,11 +87,7 @@ def point_table() -> rx.Component:
                             ),
                             width="100%",
                         ),
-                        rx.text(
-                            f"Showing {PointsState.total_count} points",
-                            size="1",
-                            color="gray",
-                        ),
+                        pagination_controls(),
                         spacing="2",
                         width="100%",
                     ),

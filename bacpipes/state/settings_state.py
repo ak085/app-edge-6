@@ -1,5 +1,6 @@
 """Settings state for BacPipes."""
 
+import asyncio
 from datetime import datetime
 from typing import Optional
 import reflex as rx
@@ -71,13 +72,30 @@ class SettingsState(rx.State):
     # First run detection
     is_first_run: bool = False
 
-    async def load_settings(self):
-        """Load all settings from database."""
-        self.is_loading = True
-        yield
+    def _load_settings_sync(self) -> dict:
+        """Synchronous database operations run in thread pool."""
+        import os
 
-        # Get network interfaces
-        self.network_interfaces = get_network_interfaces()
+        result = {
+            "network_interfaces": get_network_interfaces(),
+            "is_first_run": False,
+            "bacnet_ip": "",
+            "bacnet_port": 47808,
+            "bacnet_device_id": 3001234,
+            "discovery_timeout": 15,
+            "timezone": "UTC",
+            "default_poll_interval": 60,
+            "mqtt_broker": "",
+            "mqtt_port": 1883,
+            "mqtt_client_id": "bacpipes_worker",
+            "mqtt_username": "",
+            "mqtt_password": "",
+            "mqtt_tls_enabled": False,
+            "mqtt_tls_insecure": False,
+            "mqtt_ca_cert_path": "",
+            "mqtt_subscribe_enabled": False,
+            "ca_cert_filename": "",
+        }
 
         with rx.session() as session:
             # Load system settings
@@ -85,21 +103,21 @@ class SettingsState(rx.State):
 
             if not settings:
                 # First run - create default settings
-                self.is_first_run = True
+                result["is_first_run"] = True
                 settings = SystemSettings()
                 session.add(settings)
                 session.commit()
                 session.refresh(settings)
             else:
                 # Check if setup is needed
-                self.is_first_run = settings.bacnetIp is None
+                result["is_first_run"] = settings.bacnetIp is None
 
-            self.bacnet_ip = settings.bacnetIp or ""
-            self.bacnet_port = settings.bacnetPort
-            self.bacnet_device_id = settings.bacnetDeviceId
-            self.discovery_timeout = settings.discoveryTimeout
-            self.timezone = settings.timezone
-            self.default_poll_interval = settings.defaultPollInterval
+            result["bacnet_ip"] = settings.bacnetIp or ""
+            result["bacnet_port"] = settings.bacnetPort
+            result["bacnet_device_id"] = settings.bacnetDeviceId
+            result["discovery_timeout"] = settings.discoveryTimeout
+            result["timezone"] = settings.timezone
+            result["default_poll_interval"] = settings.defaultPollInterval
 
             # Load MQTT config
             mqtt_config = session.exec(select(MqttConfig)).first()
@@ -111,24 +129,51 @@ class SettingsState(rx.State):
                 session.commit()
                 session.refresh(mqtt_config)
 
-            self.mqtt_broker = mqtt_config.broker or ""
-            self.mqtt_port = mqtt_config.port
-            self.mqtt_client_id = mqtt_config.clientId
-            self.mqtt_username = mqtt_config.username or ""
-            self.mqtt_password = mqtt_config.password or ""
-            self.mqtt_tls_enabled = mqtt_config.tlsEnabled
-            self.mqtt_tls_insecure = mqtt_config.tlsInsecure
-            self.mqtt_ca_cert_path = mqtt_config.caCertPath or ""
-            self.mqtt_subscribe_enabled = mqtt_config.subscribeEnabled
+            result["mqtt_broker"] = mqtt_config.broker or ""
+            result["mqtt_port"] = mqtt_config.port
+            result["mqtt_client_id"] = mqtt_config.clientId
+            result["mqtt_username"] = mqtt_config.username or ""
+            result["mqtt_password"] = mqtt_config.password or ""
+            result["mqtt_tls_enabled"] = mqtt_config.tlsEnabled
+            result["mqtt_tls_insecure"] = mqtt_config.tlsInsecure
+            result["mqtt_ca_cert_path"] = mqtt_config.caCertPath or ""
+            result["mqtt_subscribe_enabled"] = mqtt_config.subscribeEnabled
 
             # Extract filename from path if cert exists
-            if self.mqtt_ca_cert_path:
-                import os
-                self.ca_cert_filename = os.path.basename(self.mqtt_ca_cert_path)
-            else:
-                self.ca_cert_filename = ""
+            if result["mqtt_ca_cert_path"]:
+                result["ca_cert_filename"] = os.path.basename(result["mqtt_ca_cert_path"])
 
-        self.is_loading = False
+        return result
+
+    @rx.event(background=True)
+    async def load_settings(self):
+        """Load all settings from database (non-blocking)."""
+        async with self:
+            self.is_loading = True
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_settings_sync)
+
+        async with self:
+            self.network_interfaces = result["network_interfaces"]
+            self.is_first_run = result["is_first_run"]
+            self.bacnet_ip = result["bacnet_ip"]
+            self.bacnet_port = result["bacnet_port"]
+            self.bacnet_device_id = result["bacnet_device_id"]
+            self.discovery_timeout = result["discovery_timeout"]
+            self.timezone = result["timezone"]
+            self.default_poll_interval = result["default_poll_interval"]
+            self.mqtt_broker = result["mqtt_broker"]
+            self.mqtt_port = result["mqtt_port"]
+            self.mqtt_client_id = result["mqtt_client_id"]
+            self.mqtt_username = result["mqtt_username"]
+            self.mqtt_password = result["mqtt_password"]
+            self.mqtt_tls_enabled = result["mqtt_tls_enabled"]
+            self.mqtt_tls_insecure = result["mqtt_tls_insecure"]
+            self.mqtt_ca_cert_path = result["mqtt_ca_cert_path"]
+            self.mqtt_subscribe_enabled = result["mqtt_subscribe_enabled"]
+            self.ca_cert_filename = result["ca_cert_filename"]
+            self.is_loading = False
 
     async def save_bacnet_config(self, form_data: dict):
         """Save BACnet configuration."""

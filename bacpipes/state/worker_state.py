@@ -1,5 +1,6 @@
 """Worker state for BacPipes."""
 
+import asyncio
 import os
 from datetime import datetime
 from typing import Optional
@@ -43,26 +44,51 @@ class WorkerState(rx.State):
     restart_message: str = ""
     is_restarting: bool = False
 
-    async def load_worker_status(self):
-        """Load worker status from database."""
+    # Loading state
+    is_loading: bool = False
+
+    def _load_worker_status_sync(self) -> dict:
+        """Synchronous database operations run in thread pool."""
+        result = {
+            "mqtt_status": "disconnected",
+            "mqtt_broker": "Not configured",
+            "last_poll_time": None,
+        }
+
         with rx.session() as session:
             mqtt_config = session.exec(select(MqttConfig)).first()
             if mqtt_config:
-                self.mqtt_status = mqtt_config.connectionStatus or "disconnected"
-                self.mqtt_broker = f"{mqtt_config.broker}:{mqtt_config.port}" if mqtt_config.broker else "Not configured"
+                result["mqtt_status"] = mqtt_config.connectionStatus or "disconnected"
+                result["mqtt_broker"] = f"{mqtt_config.broker}:{mqtt_config.port}" if mqtt_config.broker else "Not configured"
                 if mqtt_config.lastDataFlow:
-                    self.last_poll_time = mqtt_config.lastDataFlow.strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    self.last_poll_time = None
+                    result["last_poll_time"] = mqtt_config.lastDataFlow.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Check if worker process is running
-        worker = get_worker_process()
-        if worker:
-            self.worker_running = worker.is_alive() if hasattr(worker, 'is_alive') else True
-            self.worker_status = "running" if self.worker_running else "stopped"
-        else:
-            self.worker_running = False
-            self.worker_status = "not started"
+        return result
+
+    @rx.event(background=True)
+    async def load_worker_status(self):
+        """Load worker status from database (non-blocking)."""
+        async with self:
+            self.is_loading = True
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_worker_status_sync)
+
+        async with self:
+            self.mqtt_status = result["mqtt_status"]
+            self.mqtt_broker = result["mqtt_broker"]
+            self.last_poll_time = result["last_poll_time"]
+
+            # Check if worker process is running
+            worker = get_worker_process()
+            if worker:
+                self.worker_running = worker.is_alive() if hasattr(worker, 'is_alive') else True
+                self.worker_status = "running" if self.worker_running else "stopped"
+            else:
+                self.worker_running = False
+                self.worker_status = "not started"
+
+            self.is_loading = False
 
     async def restart_worker(self):
         """Request worker restart."""
@@ -92,9 +118,20 @@ class WorkerState(rx.State):
             self.is_restarting = False
 
         # Reload status after a short delay
-        import asyncio
         await asyncio.sleep(2)
-        await self.load_worker_status()
+
+        # Use background reload
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._load_worker_status_sync)
+
+        self.mqtt_status = result["mqtt_status"]
+        self.mqtt_broker = result["mqtt_broker"]
+        self.last_poll_time = result["last_poll_time"]
+
+        worker = get_worker_process()
+        if worker:
+            self.worker_running = worker.is_alive() if hasattr(worker, 'is_alive') else True
+            self.worker_status = "running" if self.worker_running else "stopped"
 
     def clear_restart_message(self):
         """Clear the restart message."""
